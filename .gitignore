@@ -1,0 +1,48 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Env files
+.env
+*.env
+secret.env
+
+# Logs
+*.log
+logs/
+
+# DB
+*.db
+
+# Alembic
+alembic.log
+
+# Tests
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Build
+build/
+dist/
+*.egg-info/
+
+# Local configs
+config.local.py
+
+# Env example
+.env.*
+!.env.example
