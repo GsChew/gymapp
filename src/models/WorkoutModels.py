@@ -78,8 +78,8 @@ class WorkoutModel(Model):
         back_populates="workouts",
     )
 
-    exercise_links: Mapped[list["WorkoutExercise"]] = relationship(
-        "WorkoutExercise",
+    exercise_links: Mapped[list["workoutExercise"]] = relationship(
+        "workoutExercise",
         back_populates="workout",
         cascade="all, delete-orphan",
     )
@@ -114,8 +114,8 @@ class ExerciseModel(Model):
         nullable=True,
     )
 
-    workout_links: Mapped[list["WorkoutExercise"]] = relationship(
-        "WorkoutExercise",
+    workout_links: Mapped[list["workoutExercise"]] = relationship(
+        "workoutExercise",
         back_populates="exercise",
         cascade="all, delete-orphan",
     )
