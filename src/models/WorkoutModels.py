@@ -2,7 +2,7 @@ import enum
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String
+from sqlalchemy import DateTime, Enum, Float, ForeignKey, Integer, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.database import Model
@@ -39,11 +39,7 @@ class MuscleTypes(enum.Enum):
 class WorkoutModel(Model):
     __tablename__ = "workouts"
 
-    id: Mapped[int] = mapped_column(
-        Integer,
-        primary_key=True,
-        autoincrement=True,
-    )
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
     user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id"),
@@ -51,10 +47,7 @@ class WorkoutModel(Model):
         nullable=False,
     )
 
-    title: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
+    title: Mapped[str] = mapped_column(String(255), nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -69,8 +62,25 @@ class WorkoutModel(Model):
 
     status: Mapped[StatusTypes] = mapped_column(
         Enum(StatusTypes, name="workout_status_types"),
-        nullable=False,
         default=StatusTypes.planned,
+        nullable=False,
+    )
+
+    remind_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    notification_task_id: Mapped[str | None] = mapped_column(
+        String(255),
+        nullable=True,
+    )
+
+    notification_sent: Mapped[bool] = mapped_column(
+        Boolean,
+        default=False,
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship(
@@ -78,12 +88,11 @@ class WorkoutModel(Model):
         back_populates="workouts",
     )
 
-    exercise_links: Mapped[list["workoutExercise"]] = relationship(
-        "workoutExercise",
+    exercise_links: Mapped[list["WorkoutExercise"]] = relationship(
+        "WorkoutExercise",
         back_populates="workout",
         cascade="all, delete-orphan",
     )
-
 
 class ExerciseModel(Model):
     __tablename__ = "exercises"
