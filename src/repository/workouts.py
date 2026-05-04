@@ -1,7 +1,9 @@
-from sqlalchemy import select
+from datetime import datetime
+
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.WorkoutModels import WorkoutModel
+from src.models.WorkoutModels import WorkoutModel, StatusTypes
 from src.schemas.WorkoutSchemas import SWorkoutCreate, SWorkoutUpdate
 
 
@@ -98,3 +100,36 @@ class WorkoutRepository:
         await session.delete(workout)
         await session.commit()
         return workout
+
+    @classmethod
+    async def get_workouts_for_notifications(
+            cls,
+            session: AsyncSession,
+            now: datetime,
+    ) -> list[WorkoutModel]:
+        stmt = select(WorkoutModel).where(
+            WorkoutModel.status == StatusTypes.planned,
+            WorkoutModel.notification_sent.is_(False),
+            WorkoutModel.remind_at <= now,
+        )
+
+        result = await session.execute(stmt)
+
+        return list(result.scalars().all())
+
+    @classmethod
+    async def mark_notifications_sent(
+            cls,
+            session: AsyncSession,
+            workout_ids: list[int],
+    ) -> None:
+        if not workout_ids:
+            return
+
+        stmt = (
+            update(WorkoutModel)
+            .where(WorkoutModel.id.in_(workout_ids))
+            .values(notification_sent=True)
+        )
+
+        await session.execute(stmt)

@@ -1,5 +1,3 @@
-# src/auth/dependencies.py
-
 from typing import Annotated
 
 from fastapi import Depends, HTTPException, status
