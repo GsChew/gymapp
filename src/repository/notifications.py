@@ -111,3 +111,18 @@ class NotificationsRepository:
         result = await session.execute(stmt)
 
         return result.scalar_one()
+
+    @classmethod
+    async def bulk_create_notifications(
+            cls,
+            session: AsyncSession,
+            notifications_data: list[SNotificationCreate],
+    ) -> list[NotificationModel]:
+        notifications = [
+            NotificationModel(**data.model_dump())
+            for data in notifications_data
+        ]
+
+        session.add_all(notifications)
+
+        return notifications
