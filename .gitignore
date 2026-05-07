@@ -1,48 +1,46 @@
 # Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
+*.pyd
 
 # Virtual env
-.venv/
 venv/
-env/
+.env/
+.env.*
+
+# Logs
+*.log
+
+# DB
+*.sqlite3
 
 # IDE
-.idea/
 .vscode/
+.idea/
 
 # OS
 .DS_Store
 
-# Env files
-.env
-*.env
-secret.env
-
-# Logs
-*.log
-logs/
-
-# DB
-*.db
-
 # Alembic
-alembic.log
+alembic/versions/*.pyc
 
-# Tests
+# Docker (иногда оставляют, но можно игнорить override)
+docker-compose.yml
+docker-compose.local.yml
+
+# Coverage
 .coverage
 htmlcov/
+
+# Pytest
 .pytest_cache/
 
-# Build
-build/
-dist/
-*.egg-info/
+# Mypy
+.mypy_cache/
 
-# Local configs
-config.local.py
+# Ruff / linters
+.ruff_cache/
 
-# Env example
-.env.*
-!.env.example
+# Secrets
+.env

@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual env
+venv/
+.env/
+.env
+
+# Git
+.git
+.gitignore
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Logs
+*.log
+
+# Tests (по желанию)
+tests/
+
+# Docker
+docker-compose.yml
+
+# Alembic cache
+alembic/__pycache__/
+
+# Misc
+*.sqlite3
