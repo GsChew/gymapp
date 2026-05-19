@@ -4,7 +4,7 @@ from src.workouts.router import router as workout_router
 from src.exercises.router import router as exercise_router
 from src.workoutExercise.router import router as workoutexercise_router
 from src.notifications.router import router as notification_router
-
+from src.logger import logger
 app = FastAPI()
 
 app.include_router(auth_router)
