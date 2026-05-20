@@ -1,9 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
+from loguru import logger
 
 from src.models.WorkoutModels import WorkoutExercise, StatusTypes
 from src.repository.workoutexercise import WorkoutExerciseRepository
-from src.schemas.WorkoutSchemas import SWorkoutExerciseCreate, SWorkoutExerciseUpdate
+from src.schemas.WorkoutSchemas import (
+    SWorkoutExerciseCreate,
+    SWorkoutExerciseUpdate,
+)
 
 
 async def create_workoutexercise(
@@ -11,6 +15,14 @@ async def create_workoutexercise(
     user_id: int,
     data: SWorkoutExerciseCreate,
 ) -> WorkoutExercise:
+
+    logger.info(
+        f"Creating workout exercise "
+        f"user_id={user_id} "
+        f"workout_id={data.workout_id} "
+        f"exercise_id={data.exercise_id}"
+    )
+
     try:
         is_owner = await WorkoutExerciseRepository.check_workout_owner(
             workout_id=data.workout_id,
@@ -19,30 +31,81 @@ async def create_workoutexercise(
         )
 
         if not is_owner:
-            raise ValueError("Тренировка не найдена или не принадлежит пользователю")
 
-        return await WorkoutExerciseRepository.create_workoutexercise(
+            logger.warning(
+                f"Workout not found or access denied "
+                f"user_id={user_id} "
+                f"workout_id={data.workout_id}"
+            )
+
+            raise ValueError(
+                "Тренировка не найдена или не принадлежит пользователю"
+            )
+
+        created = await WorkoutExerciseRepository.create_workoutexercise(
             data=data,
             session=session,
         )
 
     except SQLAlchemyError as e:
+
         await session.rollback()
-        raise ValueError("Ошибка при создании упражнения в тренировке") from e
+
+        logger.exception(
+            f"Database error while creating workout exercise "
+            f"user_id={user_id} "
+            f"workout_id={data.workout_id} "
+            f"exercise_id={data.exercise_id}"
+        )
+
+        raise ValueError(
+            "Ошибка при создании упражнения в тренировке"
+        ) from e
+
+    logger.info(
+        f"Workout exercise created successfully "
+        f"user_id={user_id} "
+        f"workout_id={created.workout_id} "
+        f"exercise_id={created.exercise_id}"
+    )
+
+    return created
 
 
 async def get_workoutexercises(
     session: AsyncSession,
     user_id: int,
 ) -> list[WorkoutExercise]:
+
+    logger.info(
+        f"Getting workout exercises "
+        f"user_id={user_id}"
+    )
+
     try:
-        return await WorkoutExerciseRepository.get_workoutexercises(
+        exercises = await WorkoutExerciseRepository.get_workoutexercises(
             user_id=user_id,
             session=session,
         )
 
     except SQLAlchemyError as e:
-        raise ValueError("Не удалось получить список упражнений в тренировках") from e
+
+        logger.exception(
+            f"Database error while getting workout exercises "
+            f"user_id={user_id}"
+        )
+
+        raise ValueError(
+            "Не удалось получить список упражнений в тренировках"
+        ) from e
+
+    logger.info(
+        f"Workout exercises retrieved successfully "
+        f"user_id={user_id} "
+        f"count={len(exercises)}"
+    )
+
+    return exercises
 
 
 async def get_workoutexercises_by_status(
@@ -50,15 +113,40 @@ async def get_workoutexercises_by_status(
     user_id: int,
     status: StatusTypes,
 ) -> list[WorkoutExercise]:
+
+    logger.info(
+        f"Getting workout exercises by status "
+        f"user_id={user_id} "
+        f"status={status}"
+    )
+
     try:
-        return await WorkoutExerciseRepository.get_workoutexercises_by_status(
+        exercises = await WorkoutExerciseRepository.get_workoutexercises_by_status(
             user_id=user_id,
             status=status,
             session=session,
         )
 
     except SQLAlchemyError as e:
-        raise ValueError("Не удалось получить список упражнений по статусу") from e
+
+        logger.exception(
+            f"Database error while getting workout exercises by status "
+            f"user_id={user_id} "
+            f"status={status}"
+        )
+
+        raise ValueError(
+            "Не удалось получить список упражнений по статусу"
+        ) from e
+
+    logger.info(
+        f"Workout exercises retrieved successfully "
+        f"user_id={user_id} "
+        f"status={status} "
+        f"count={len(exercises)}"
+    )
+
+    return exercises
 
 
 async def get_workoutexercise_by_ids(
@@ -67,6 +155,14 @@ async def get_workoutexercise_by_ids(
     workout_id: int,
     exercise_id: int,
 ) -> WorkoutExercise:
+
+    logger.info(
+        f"Getting workout exercise "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id}"
+    )
+
     try:
         selected = await WorkoutExerciseRepository.get_workoutexercise_by_ids(
             workout_id=workout_id,
@@ -76,10 +172,35 @@ async def get_workoutexercise_by_ids(
         )
 
     except SQLAlchemyError as e:
-        raise ValueError("Не удалось получить упражнение из тренировки") from e
+
+        logger.exception(
+            f"Database error while getting workout exercise "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
+        raise ValueError(
+            "Не удалось получить упражнение из тренировки"
+        ) from e
 
     if selected is None:
+
+        logger.warning(
+            f"Workout exercise not found "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
         raise ValueError("Упражнение в тренировке не найдено")
+
+    logger.info(
+        f"Workout exercise retrieved successfully "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id}"
+    )
 
     return selected
 
@@ -91,9 +212,25 @@ async def update_workoutexercise(
     exercise_id: int,
     data: SWorkoutExerciseUpdate,
 ) -> WorkoutExercise:
+
+    logger.info(
+        f"Updating workout exercise "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id}"
+    )
+
     update_data = data.model_dump(exclude_unset=True)
 
     if not update_data:
+
+        logger.warning(
+            f"Workout exercise update failed: no data provided "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
         raise ValueError("Нет данных для обновления")
 
     try:
@@ -106,11 +243,38 @@ async def update_workoutexercise(
         )
 
     except SQLAlchemyError as e:
+
         await session.rollback()
-        raise ValueError("Не удалось изменить упражнение в тренировке") from e
+
+        logger.exception(
+            f"Database error while updating workout exercise "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
+        raise ValueError(
+            "Не удалось изменить упражнение в тренировке"
+        ) from e
 
     if updated is None:
+
+        logger.warning(
+            f"Workout exercise not found "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
         raise ValueError("Упражнение в тренировке не найдено")
+
+    logger.info(
+        f"Workout exercise updated successfully "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id} "
+        f"fields={list(update_data.keys())}"
+    )
 
     return updated
 
@@ -121,6 +285,14 @@ async def delete_workoutexercise(
     exercise_id: int,
     user_id: int,
 ) -> WorkoutExercise:
+
+    logger.info(
+        f"Deleting workout exercise "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id}"
+    )
+
     try:
         deleted = await WorkoutExerciseRepository.delete_workoutexercise(
             workout_id=workout_id,
@@ -130,10 +302,36 @@ async def delete_workoutexercise(
         )
 
     except SQLAlchemyError as e:
+
         await session.rollback()
-        raise ValueError("Не удалось удалить упражнение из тренировки") from e
+
+        logger.exception(
+            f"Database error while deleting workout exercise "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
+        raise ValueError(
+            "Не удалось удалить упражнение из тренировки"
+        ) from e
 
     if deleted is None:
+
+        logger.warning(
+            f"Workout exercise not found "
+            f"user_id={user_id} "
+            f"workout_id={workout_id} "
+            f"exercise_id={exercise_id}"
+        )
+
         raise ValueError("Упражнение в тренировке не найдено")
+
+    logger.info(
+        f"Workout exercise deleted successfully "
+        f"user_id={user_id} "
+        f"workout_id={workout_id} "
+        f"exercise_id={exercise_id}"
+    )
 
     return deleted
