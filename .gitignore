@@ -1,20 +1,26 @@
-# Python
+# Python cache
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
 
-# Virtual env
+# Virtual environments
 venv/
-.env/
+.venv/
+env/
+ENV/
+
+# Environment variables / secrets
+.env
 .env.*
+!.env.example
 
 # Logs
-/logs
+logs/
 *.log
 
-# DB
+# Databases
 *.sqlite3
+*.db
 
 # IDE
 .vscode/
@@ -23,16 +29,18 @@ venv/
 # OS
 .DS_Store
 
-# Alembic
+# Alembic cache
 alembic/versions/*.pyc
 
-# Docker (иногда оставляют, но можно игнорить override)
+# Docker local overrides
 docker-compose.yml
+docker-compose.override.yml
 docker-compose.local.yml
 
 # Coverage
 .coverage
 htmlcov/
+coverage.xml
 
 # Pytest
 .pytest_cache/
@@ -42,6 +50,3 @@ htmlcov/
 
 # Ruff / linters
 .ruff_cache/
-
-# Secrets
-.env
