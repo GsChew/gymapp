@@ -1,9 +1,9 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
 from src.schemas.WorkoutSchemas import SExercise
+from src.models.WorkoutModels import MuscleTypes, TrainTypes
 
 from src.database import SessionDep
-from src.models.WorkoutModels import ExerciseModel
 from src.schemas.WorkoutSchemas import SExerciseCreate, SExerciseUpdate
 from src.exercises.service import (
     get_exercise_by_id as get_exercise_by_id_service,
@@ -19,8 +19,18 @@ router = APIRouter(prefix="/exercises", tags=["Exercises"])
 @router.get("/", response_model=list[SExercise])
 async def get_exercises(
     session: SessionDep,
+    limit: int = Query(default=30, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    muscle: MuscleTypes | None = None,
+    train_type: TrainTypes | None = None,
 ):
-    return await get_exercises_service(session=session)
+    return await get_exercises_service(
+        session=session,
+        limit=limit,
+        offset=offset,
+        muscle=muscle,
+        train_type=train_type,
+    )
 
 
 @router.get("/{id}", response_model=SExercise)

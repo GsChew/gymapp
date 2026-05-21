@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from src.database import SessionDep
 from src.auth.dependencies import get_current_user
@@ -18,12 +18,18 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 @router.get("", response_model=list[SNotification])
 async def get_notifications(
-        session: SessionDep,
-        user: User = Depends(get_current_user),
+    session: SessionDep,
+    user: User = Depends(get_current_user),
+    limit: int = Query(default=30, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    is_read: bool | None = Query(default=None),
 ):
     return await get_notifications_service(
         session=session,
         user_id=user.id,
+        limit=limit,
+        offset=offset,
+        is_read=is_read,
     )
 
 

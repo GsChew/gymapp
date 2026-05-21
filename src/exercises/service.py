@@ -2,6 +2,7 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from models.WorkoutModels import MuscleTypes, TrainTypes
 from src.models.WorkoutModels import ExerciseModel
 from src.repository.exercises import ExerciseRepository
 from src.schemas.WorkoutSchemas import (
@@ -12,24 +13,32 @@ from src.schemas.WorkoutSchemas import (
 
 async def get_exercises(
     session: AsyncSession,
+    limit: int = 30,
+    offset: int = 0,
+    muscle: MuscleTypes | None = None,
+    train_type: TrainTypes | None = None,
 ) -> list[ExerciseModel]:
 
-    logger.info("Getting exercises")
+    logger.info(
+        f"Getting exercises "
+        f"limit={limit} "
+        f"offset={offset} "
+        f"muscle={muscle} "
+        f"train_type={train_type}"
+    )
 
     try:
         exercises = await ExerciseRepository.get_exercises(
-            session=session
+            session=session,
+            limit=limit,
+            offset=offset,
+            muscle=muscle,
+            train_type=train_type,
         )
 
     except SQLAlchemyError as e:
-
-        logger.exception(
-            "Database error while getting exercises"
-        )
-
-        raise ValueError(
-            "Не удалось получить список упражнений"
-        ) from e
+        logger.exception("Database error while getting exercises")
+        raise ValueError("Не удалось получить список упражнений") from e
 
     logger.info(
         f"Exercises retrieved successfully "

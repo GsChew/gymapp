@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import SQLAlchemyError
 from loguru import logger
 
+from models.WorkoutModels import  StatusTypes
 from src.repository.workouts import WorkoutRepository
 from src.models.WorkoutModels import WorkoutModel
 from src.schemas.WorkoutSchemas import SWorkoutCreate, SWorkoutUpdate
@@ -45,15 +46,26 @@ async def create_workout(
 async def get_workouts(
     session: AsyncSession,
     user_id: int,
+    limit: int,
+    offset: int,
+    status: StatusTypes | None,
 ) -> list[WorkoutModel]:
 
-    logger.info(f"Getting workouts user_id={user_id}")
+    logger.info(
+        f"Getting workouts "
+        f"user_id={user_id} "
+        f"limit={limit} "
+        f"offset={offset} "
+        f"status={status}"
+    )
 
     try:
-
         workouts = await WorkoutRepository.get_workouts(
             user_id=user_id,
             session=session,
+            limit=limit,
+            offset=offset,
+            status=status,
         )
 
         logger.info(
@@ -65,7 +77,6 @@ async def get_workouts(
         return workouts
 
     except SQLAlchemyError as e:
-
         logger.exception(
             f"Database error while getting workouts "
             f"user_id={user_id}"

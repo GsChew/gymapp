@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
+from models.WorkoutModels import StatusTypes
 from src.auth.dependencies import get_current_user
 from src.models.UserModels import User
 from src.models.WorkoutModels import WorkoutModel
@@ -17,14 +18,20 @@ from src.workouts.service import (
 router = APIRouter(prefix="/workouts", tags=["Workouts"])
 
 
-@router.get("/")
+@router.get("/", response_model=list[SWorkout])
 async def get_workouts(
     session: SessionDep,
     user: User = Depends(get_current_user),
+    limit: int = Query(default=15, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    status: StatusTypes | None = None,
 ):
     return await get_workouts_service(
         session=session,
         user_id=user.id,
+        limit=limit,
+        offset=offset,
+        status=status,
     )
 
 

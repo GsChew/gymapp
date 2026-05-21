@@ -46,22 +46,29 @@ async def create_notification(
 async def get_notifications(
     session: AsyncSession,
     user_id: int,
+    limit: int,
+    offset: int,
+    is_read: bool | None,
 ) -> list[NotificationModel]:
 
     logger.info(
         f"Getting notifications "
-        f"user_id={user_id}"
+        f"user_id={user_id} "
+        f"limit={limit} "
+        f"offset={offset} "
+        f"is_read={is_read}"
     )
 
     try:
-
         notifications = await NotificationsRepository.get_notifications(
             session=session,
             user_id=user_id,
+            limit=limit,
+            offset=offset,
+            is_read=is_read,
         )
 
     except SQLAlchemyError as e:
-
         logger.exception(
             f"Database error while getting notifications "
             f"user_id={user_id}"

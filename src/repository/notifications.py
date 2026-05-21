@@ -26,11 +26,23 @@ class NotificationsRepository:
             cls,
             session: AsyncSession,
             user_id: int,
+            limit: int,
+            offset: int,
+            is_read: bool | None = None,
     ) -> list[NotificationModel]:
         stmt = (
             select(NotificationModel)
             .where(NotificationModel.user_id == user_id)
+        )
+
+        if is_read is not None:
+            stmt = stmt.where(NotificationModel.is_read == is_read)
+
+        stmt = (
+            stmt
             .order_by(NotificationModel.created_at.desc())
+            .limit(limit)
+            .offset(offset)
         )
 
         result = await session.execute(stmt)

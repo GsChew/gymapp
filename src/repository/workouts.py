@@ -20,19 +20,35 @@ class WorkoutRepository:
             WorkoutModel.user_id == user_id,
             WorkoutModel.title == name_of_workout,
         )
+
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
 
     @classmethod
     async def get_workouts(
-        cls,
-        user_id: int,
-        session: AsyncSession,
+            cls,
+            user_id: int,
+            session: AsyncSession,
+            limit: int,
+            offset: int,
+            status: StatusTypes | None,
     ) -> list[WorkoutModel]:
         stmt = select(WorkoutModel).where(
             WorkoutModel.user_id == user_id
         )
+
+        if status is not None:
+            stmt = stmt.where(WorkoutModel.status == status)
+
+        stmt = (
+            stmt
+            .order_by(WorkoutModel.planned_at.desc())
+            .offset(offset)
+            .limit(limit)
+        )
+
         result = await session.execute(stmt)
+
         return list(result.scalars().all())
 
     @classmethod

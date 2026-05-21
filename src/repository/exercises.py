@@ -1,6 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+from models.WorkoutModels import MuscleTypes, TrainTypes
 from src.models.WorkoutModels import ExerciseModel
 from src.schemas.WorkoutSchemas import SExerciseCreate, SExerciseUpdate
 
@@ -9,11 +10,30 @@ class ExerciseRepository:
 
     @classmethod
     async def get_exercises(
-        cls,
-        session: AsyncSession,
+            cls,
+            session: AsyncSession,
+            limit: int = 30,
+            offset: int = 0,
+            muscle: MuscleTypes | None = None,
+            train_type: TrainTypes | None = None,
     ) -> list[ExerciseModel]:
         stmt = select(ExerciseModel)
+
+        if muscle is not None:
+            stmt = stmt.where(ExerciseModel.muscle == muscle)
+
+        if train_type is not None:
+            stmt = stmt.where(ExerciseModel.train_type == train_type)
+
+        stmt = (
+            stmt
+            .order_by(ExerciseModel.id)
+            .offset(offset)
+            .limit(limit)
+        )
+
         result = await session.execute(stmt)
+
         return list(result.scalars().all())
 
     @classmethod
