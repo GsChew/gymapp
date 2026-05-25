@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int
     celery_broker_url: str
     celery_result_backend: str
+    redis_url: str
 
     model_config = SettingsConfigDict(
         env_file=".env",
