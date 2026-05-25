@@ -1,6 +1,7 @@
 import time
 import uuid
 
+from loguru import logger
 from redis.exceptions import RedisError
 
 from src.schemas.RateLimit import SRateLimitRule, SRateLimitResponse
@@ -30,7 +31,15 @@ async def get_ratelimit_result(
             expire_seconds,
         )
 
-    except RedisError:
+    except RedisError as e:
+        logger.exception(
+            f"Redis error during rate limit check. "
+            f"scope={rule.scope}, "
+            f"identifier={identifier}, "
+            f"redis_key={redis_key}, "
+            f"error={e}"
+        )
+
         return SRateLimitResponse(
             allowed=True,
             limit=rule.limit,
