@@ -1,6 +1,8 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
-from enum import Enum
+from enum import Enum as PyEnum
+
+from sqlalchemy import Enum as SqlEnum
 
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -10,7 +12,7 @@ from src.database import Model
 if TYPE_CHECKING:
     from src.models.WorkoutModels import WorkoutModel
 
-class UserRole(str, Enum):
+class UserRole(str, PyEnum):
     user = "user"
     trainer = "trainer"
     admin = "admin"
@@ -54,7 +56,7 @@ class User(Model):
     )
 
     role: Mapped[UserRole] = mapped_column(
-        Enum(UserRole),
+        SqlEnum(UserRole),
         default=UserRole.user,
         nullable=False,
     )
