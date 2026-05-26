@@ -8,6 +8,7 @@ from src.auth.security import decode_token
 from src.database import get_db
 from src.models.UserModels import User
 from src.repository.users import UserRepository
+from src.models.UserModels import UserRole
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
@@ -52,3 +53,17 @@ async def get_current_user(
         raise credentials_exception
 
     return user
+
+def require_roles(*roles: UserRole):
+    async def role_checker(
+        user: User = Depends(get_current_user),
+    ) -> User:
+        if user.role not in roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Недостаточно прав",
+            )
+
+        return user
+
+    return role_checker

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 
 from src.schemas.WorkoutSchemas import SExercise
 from src.models.WorkoutModels import MuscleTypes, TrainTypes
@@ -12,6 +12,8 @@ from src.exercises.service import (
     update_exercise as update_exercise_service,
     create_exercise as create_exercise_service,
 )
+from src.auth.dependencies import get_current_user, require_roles
+from src.models.UserModels import User, UserRole
 
 router = APIRouter(prefix="/exercises", tags=["Exercises"])
 
@@ -23,6 +25,7 @@ async def get_exercises(
     offset: int = Query(default=0, ge=0),
     muscle: MuscleTypes | None = None,
     train_type: TrainTypes | None = None,
+    user: User = Depends(get_current_user),
 ):
     return await get_exercises_service(
         session=session,
@@ -37,6 +40,7 @@ async def get_exercises(
 async def get_exercise_by_id(
     id: int,
     session: SessionDep,
+    user: User = Depends(get_current_user),
 ):
     return await get_exercise_by_id_service(
         session=session,
@@ -48,6 +52,7 @@ async def get_exercise_by_id(
 async def create_exercise(
     data: SExerciseCreate,
     session: SessionDep,
+    user: User = Depends(require_roles(UserRole.trainer, UserRole.admin)),
 ):
     return await create_exercise_service(
         session=session,
@@ -60,6 +65,7 @@ async def update_exercise(
     id: int,
     data: SExerciseUpdate,
     session: SessionDep,
+    user: User = Depends(require_roles(UserRole.trainer, UserRole.admin)),
 ):
     return await update_exercise_service(
         session=session,
@@ -72,6 +78,7 @@ async def update_exercise(
 async def delete_exercise(
     id: int,
     session: SessionDep,
+    user: User = Depends(require_roles(UserRole.admin)),
 ):
     return await delete_exercise_service(
         session=session,

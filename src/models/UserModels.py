@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
+from enum import Enum
 
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -9,6 +10,10 @@ from src.database import Model
 if TYPE_CHECKING:
     from src.models.WorkoutModels import WorkoutModel
 
+class UserRole(str, Enum):
+    user = "user"
+    trainer = "trainer"
+    admin = "admin"
 
 class User(Model):
     __tablename__ = "users"
@@ -46,4 +51,10 @@ class User(Model):
         "WorkoutModel",
         back_populates="user",
         cascade="all, delete-orphan",
+    )
+
+    role: Mapped[UserRole] = mapped_column(
+        Enum(UserRole),
+        default=UserRole.user,
+        nullable=False,
     )

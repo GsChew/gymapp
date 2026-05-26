@@ -1,6 +1,8 @@
 from pydantic import BaseModel, ConfigDict, EmailStr
 from datetime import  datetime
 
+from src.models.UserModels import UserRole
+
 class SUserCreate(BaseModel):
     username: str
     email: EmailStr
@@ -11,6 +13,7 @@ class SUser(BaseModel):
     username: str
     email: EmailStr
     created_at: datetime
+    role: UserRole
 
     model_config = ConfigDict(from_attributes=True)
 

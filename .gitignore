@@ -50,3 +50,6 @@ coverage.xml
 
 # Ruff / linters
 .ruff_cache/
+
+.static/
+static/
