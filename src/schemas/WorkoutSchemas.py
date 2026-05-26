@@ -33,6 +33,8 @@ class SExerciseCreate(BaseModel):
     description: str | None = None
     train: TrainTypes
     muscle: MuscleTypes | None = None
+    video_url: str | None = None
+    muscle_image_url: str | None = None
 
 
 class SExercise(BaseModel):
@@ -41,6 +43,8 @@ class SExercise(BaseModel):
     description: str | None = None
     train: TrainTypes
     muscle: MuscleTypes | None = None
+    video_url: str | None = None
+    muscle_image_url: str | None = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -50,6 +54,8 @@ class SExerciseUpdate(BaseModel):
     description: str | None = None
     train: TrainTypes | None = None
     muscle: MuscleTypes | None = None
+    video_url: str | None = None
+    muscle_image_url: str | None = None
 
 
 class SWorkoutExerciseCreate(BaseModel):

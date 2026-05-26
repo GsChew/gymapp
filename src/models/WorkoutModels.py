@@ -129,6 +129,16 @@ class ExerciseModel(Model):
         cascade="all, delete-orphan",
     )
 
+    video_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
+    muscle_image_url: Mapped[str | None] = mapped_column(
+        String(500),
+        nullable=True
+    )
+
 
 class WorkoutExercise(Model):
     __tablename__ = "workout_exercises"
