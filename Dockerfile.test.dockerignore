@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.git/
+.idea/
+.venv/
+.venv-test/
+.env
+.env.*
+!.env.test.example
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+allure-results/
+logs/
+*.log
+celerybeat-schedule*

@@ -1,5 +1,6 @@
 from datetime import timedelta, datetime, timezone
 from typing import Literal
+from uuid import uuid4
 from src.config import settings
 from pwdlib import PasswordHash
 import jwt
@@ -7,9 +8,11 @@ import jwt
 password_hash = PasswordHash.recommended()
 
 def hash_password(password: str) -> str:
+    """Hash a plaintext password for storage."""
     return password_hash.hash(password)
 
 def verify_password(password: str, hashed_password: str) -> bool:
+    """Verify a plaintext password against a stored hash."""
     valid, _ = password_hash.verify_and_update(password, hashed_password)
     return valid
 
@@ -18,11 +21,13 @@ def create_jwt(
     expires_delta: timedelta,
     token_type: Literal["access", "refresh"],
 ) -> str:
+    """Create a signed JWT for the given subject and token type."""
     expire = datetime.now(timezone.utc) + expires_delta
 
     payload = {
         "sub": str(subject),
         "exp": expire,
+        "jti": str(uuid4()),
         "token_type": token_type,
     }
 
@@ -33,6 +38,7 @@ def create_jwt(
     )
 
 def create_access_token(subject: str | int) -> str:
+    """Create a short-lived access token for a user."""
     return create_jwt(
         subject=subject,
         expires_delta=timedelta(minutes=settings.access_token_expire_minutes),
@@ -40,6 +46,7 @@ def create_access_token(subject: str | int) -> str:
     )
 
 def create_refresh_token(subject: str | int) -> str:
+    """Create a long-lived refresh token for a user."""
     return create_jwt(
         subject=subject,
         expires_delta=timedelta(days=settings.refresh_token_expire_days),
@@ -47,6 +54,7 @@ def create_refresh_token(subject: str | int) -> str:
     )
 
 def decode_token(token: str) -> dict:
+    """Decode and validate a JWT payload."""
     return jwt.decode(
         jwt=token,
         key=settings.secret_key,

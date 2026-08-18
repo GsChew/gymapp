@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     celery_broker_url: str
     celery_result_backend: str
     redis_url: str
+    log_level: str = "INFO"
+    log_dir: str = "logs"
+    log_json: bool = False
 
     model_config = SettingsConfigDict(
         env_file=".env",

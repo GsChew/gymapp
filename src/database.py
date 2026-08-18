@@ -15,7 +15,7 @@ DATABASE_URL = settings.database_url
 
 engine = create_async_engine(
     DATABASE_URL,
-    echo=True,
+    echo=False,
 )
 
 new_session = async_sessionmaker(
@@ -25,6 +25,7 @@ new_session = async_sessionmaker(
 
 
 async def get_db():
+    """Yield an asynchronous database session for request handling."""
     async with new_session() as session:
         yield session
 

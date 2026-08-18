@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f4f6f2" />
+    <title>Stride | План тренировок</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+    <script src="https://unpkg.com/lucide@0.468.0/dist/umd/lucide.min.js" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <main id="auth-view" class="auth-layout">
+      <section class="auth-visual" aria-label="Тренировка">
+        <img src="/static/assets/training-hero.png" alt="Спортсмен выполняет приседания со штангой" />
+        <div class="auth-brand">
+          <span class="brand-mark" aria-hidden="true">S</span>
+          <span>stride</span>
+        </div>
+        <div class="auth-copy">
+          <p class="eyebrow">Тренируйся осознанно</p>
+          <h1>План, который держит темп вместе с тобой.</h1>
+        </div>
+      </section>
+
+      <section class="auth-panel">
+        <div class="auth-form-wrap">
+          <div class="mobile-brand">
+            <span class="brand-mark" aria-hidden="true">S</span>
+            <span>stride</span>
+          </div>
+          <div id="login-form-wrap">
+            <p class="eyebrow">С возвращением</p>
+            <h2>Войди в свой ритм</h2>
+            <p class="muted">Тренировки, упражнения и напоминания в одном месте.</p>
+            <form id="login-form" class="stack-form">
+              <label>Логин<input name="username" autocomplete="username" minlength="3" required /></label>
+              <label>Пароль<input name="password" type="password" autocomplete="current-password" required /></label>
+              <button class="button primary full" type="submit"><i data-lucide="arrow-right"></i> Войти</button>
+            </form>
+            <p class="form-switch">Впервые здесь? <button class="text-button" data-auth-mode="register" type="button">Создать аккаунт</button></p>
+          </div>
+
+          <div id="register-form-wrap" hidden>
+            <p class="eyebrow">Новая привычка</p>
+            <h2>Создай аккаунт</h2>
+            <p class="muted">Начни с простой следующей тренировки.</p>
+            <form id="register-form" class="stack-form">
+              <label>Логин<input name="username" autocomplete="username" minlength="3" required /></label>
+              <label>Email<input name="email" type="email" autocomplete="email" required /></label>
+              <label>Пароль<input name="password" type="password" autocomplete="new-password" minlength="8" required /></label>
+              <button class="button primary full" type="submit"><i data-lucide="user-plus"></i> Создать аккаунт</button>
+            </form>
+            <p class="form-switch">Уже есть аккаунт? <button class="text-button" data-auth-mode="login" type="button">Войти</button></p>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <div id="app-view" class="app-shell" hidden>
+      <aside class="sidebar">
+        <div class="brand"><span class="brand-mark" aria-hidden="true">S</span><span>stride</span></div>
+        <nav class="main-nav" aria-label="Основная навигация">
+          <button class="nav-item active" data-view="dashboard"><i data-lucide="layout-dashboard"></i><span>Обзор</span></button>
+          <button class="nav-item" data-view="plan"><i data-lucide="calendar-days"></i><span>План</span></button>
+          <button class="nav-item" data-view="calendar"><i data-lucide="calendar-range"></i><span>Календарь</span></button>
+          <button class="nav-item" data-view="progress"><i data-lucide="trending-up"></i><span>Прогресс</span></button>
+          <button class="nav-item" data-view="goals"><i data-lucide="target"></i><span>Цели</span></button>
+          <button class="nav-item" data-view="templates"><i data-lucide="copy-check"></i><span>Шаблоны</span></button>
+          <button class="nav-item" data-view="library"><i data-lucide="dumbbell"></i><span>Упражнения</span></button>
+          <button id="trainer-nav" class="nav-item" data-view="trainer" hidden><i data-lucide="users"></i><span>Клиенты</span></button>
+        </nav>
+        <div class="sidebar-bottom">
+          <button id="logout-button" class="nav-item"><i data-lucide="log-out"></i><span>Выйти</span></button>
+        </div>
+      </aside>
+
+      <section class="workspace">
+        <header class="topbar">
+          <button id="mobile-menu-button" class="icon-button mobile-only" aria-label="Открыть меню" title="Открыть меню"><i data-lucide="menu"></i></button>
+          <div class="date-label" id="today-label"></div>
+          <div class="topbar-actions">
+            <button id="notifications-button" class="icon-button notification-button" aria-label="Уведомления" title="Уведомления"><i data-lucide="bell"></i><span id="notification-badge" class="badge" hidden>0</span></button>
+            <button id="profile-button" class="profile-button" aria-label="Профиль"><span id="profile-initials" class="avatar">ST</span><span id="profile-name"></span><i data-lucide="chevron-down"></i></button>
+          </div>
+        </header>
+
+        <div class="content">
+          <section id="dashboard-view" class="view">
+            <div class="page-heading">
+              <div><p class="eyebrow">Твой фокус</p><h1>Привет, <span id="greeting-name">спортсмен</span>.</h1></div>
+              <div class="page-actions"><button class="button secondary" data-action="starter-plan"><i data-lucide="sparkles"></i> Готовая неделя</button><button class="button primary" data-open-dialog="workout-dialog"><i data-lucide="plus"></i> Тренировка</button></div>
+            </div>
+
+            <section class="dashboard-grid">
+              <article class="next-workout-panel">
+                <img src="/static/assets/training-hero.png" alt="Тренировка со штангой" />
+                <div class="next-workout-content">
+                  <p class="eyebrow light">Ближайшая тренировка</p>
+                  <h2 id="next-workout-title">Добавь первую тренировку</h2>
+                  <p id="next-workout-time">Собери план на неделю и начни с одного шага.</p>
+                  <button id="next-workout-action" class="button light" data-open-dialog="workout-dialog"><i data-lucide="plus"></i> Запланировать</button>
+                </div>
+              </article>
+              <div class="stat-list">
+                <article class="stat-card"><span class="stat-icon coral"><i data-lucide="flame"></i></span><div><strong id="planned-count">0</strong><span>в плане</span></div></article>
+                <article class="stat-card"><span class="stat-icon blue"><i data-lucide="check-check"></i></span><div><strong id="completed-count">0</strong><span>завершено</span></div></article>
+                <article class="stat-card"><span class="stat-icon lime"><i data-lucide="bell-ring"></i></span><div><strong id="unread-count">0</strong><span>новых напоминаний</span></div></article>
+              </div>
+            </section>
+
+            <section class="section-block">
+              <div class="section-heading"><div><h2>Ближайший план</h2><p class="muted">То, что ты выбрал для себя дальше.</p></div><button class="text-button" data-view="plan" type="button">Открыть план <i data-lucide="arrow-up-right"></i></button></div>
+              <div id="dashboard-workouts" class="workout-list compact-list"></div>
+            </section>
+          </section>
+
+          <section id="plan-view" class="view" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">Планирование</p><h1>Тренировки</h1></div>
+              <button class="button primary" data-open-dialog="workout-dialog"><i data-lucide="plus"></i> Тренировка</button>
+            </div>
+            <div class="segmented" role="tablist" aria-label="Фильтр тренировок">
+              <button class="segment active" data-workout-filter="all" role="tab">Все</button>
+              <button class="segment" data-workout-filter="запланировано" role="tab">Запланированные</button>
+              <button class="segment" data-workout-filter="сделано" role="tab">Завершенные</button>
+              <button class="segment" data-workout-filter="пропущено" role="tab">Пропущенные</button>
+            </div>
+            <div id="plan-workouts" class="workout-list"></div>
+          </section>
+
+          <section id="calendar-view" class="view" hidden>
+            <div class="page-heading"><div><p class="eyebrow">Расписание</p><h1>Календарь</h1></div></div>
+            <div id="calendar-grid" class="calendar-grid"></div>
+          </section>
+
+          <section id="progress-view" class="view" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">Динамика</p><h1>Прогресс</h1></div>
+            </div>
+            <section class="progress-grid">
+              <article class="progress-card"><span class="stat-icon coral"><i data-lucide="activity"></i></span><div><strong id="progress-weekly-volume">0</strong><span>объем за неделю</span></div></article>
+              <article class="progress-card"><span class="stat-icon blue"><i data-lucide="calendar-check"></i></span><div><strong id="progress-weekly-workouts">0</strong><span>тренировок за неделю</span></div></article>
+              <article class="progress-card"><span class="stat-icon lime"><i data-lucide="repeat"></i></span><div><strong id="progress-streak">0</strong><span>недель подряд</span></div></article>
+              <article class="progress-card"><span class="stat-icon teal"><i data-lucide="trophy"></i></span><div><strong id="progress-best">-</strong><span>лучшее упражнение</span></div></article>
+            </section>
+            <section class="section-block">
+              <div class="section-heading"><div><h2>Недельный объем</h2><p class="muted">Сумма подходов, повторов и веса по завершенным упражнениям.</p></div></div>
+              <div id="weekly-volume-chart" class="volume-chart"></div>
+            </section>
+            <section class="section-block">
+              <div class="section-heading"><div><h2>Личные рекорды</h2><p class="muted">Лучшие результаты по упражнениям из завершенных тренировок.</p></div></div>
+              <div id="records-grid" class="records-grid"></div>
+            </section>
+          </section>
+
+          <section id="goals-view" class="view" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">Фокус</p><h1>Цели</h1></div>
+              <button class="button primary" data-open-dialog="goal-dialog"><i data-lucide="plus"></i> Цель</button>
+            </div>
+            <div id="goals-grid" class="records-grid"></div>
+          </section>
+
+          <section id="templates-view" class="view" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">Быстрый старт</p><h1>Шаблоны</h1></div>
+              <button class="button primary" data-open-dialog="template-dialog"><i data-lucide="plus"></i> Шаблон</button>
+            </div>
+            <div id="templates-grid" class="records-grid"></div>
+          </section>
+
+          <section id="trainer-view" class="view" hidden>
+            <div class="page-heading"><div><p class="eyebrow">Тренер</p><h1>Клиенты</h1></div></div>
+            <div id="trainer-users" class="workout-list"></div>
+          </section>
+
+          <section id="library-view" class="view" hidden>
+            <div class="page-heading">
+              <div><p class="eyebrow">Библиотека</p><h1>Упражнения</h1></div>
+              <button id="new-exercise-button" class="button secondary" data-open-dialog="exercise-dialog" hidden><i data-lucide="plus"></i> Упражнение</button>
+            </div>
+            <div class="filter-row">
+              <label class="select-label">Тип<select id="exercise-train-filter"><option value="">Все типы</option><option value="силовая_тренировка">Силовая</option><option value="кардио">Кардио</option><option value="растяжка">Растяжка</option></select></label>
+              <label class="select-label">Мышцы<select id="exercise-muscle-filter"><option value="">Все мышцы</option><option value="грудные">Грудные</option><option value="пресс">Пресс</option><option value="широчайшие">Широчайшие</option><option value="плечи">Плечи</option><option value="бицепс">Бицепс</option><option value="трицепс">Трицепс</option><option value="ягодичные">Ягодичные</option><option value="квадрицепс">Квадрицепс</option><option value="задняя_часть_бедра">Задняя поверхность бедра</option><option value="икры">Икры</option></select></label>
+            </div>
+            <div id="exercise-grid" class="exercise-grid"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+
+    <aside id="notification-drawer" class="notification-drawer" aria-label="Уведомления" hidden>
+      <div class="drawer-header"><div><p class="eyebrow">Входящие</p><h2>Уведомления</h2></div><button id="close-notifications" class="icon-button" aria-label="Закрыть уведомления" title="Закрыть"><i data-lucide="x"></i></button></div>
+      <div id="notification-list" class="notification-list"></div>
+    </aside>
+    <div id="drawer-scrim" class="drawer-scrim" hidden></div>
+
+    <dialog id="workout-dialog" class="modal">
+      <form id="workout-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Новая запись</p><h2>Запланировать тренировку</h2></div><button class="icon-button" type="button" data-close-dialog="workout-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <div class="form-grid"><label>Название<input name="title" maxlength="255" placeholder="Например, Ноги и корпус" required /></label><label>Когда<input name="planned_at" type="datetime-local" required /></label><label>Напоминание<input name="remind_at" type="datetime-local" /></label></div>
+        <div class="modal-actions"><button class="button ghost" type="button" data-close-dialog="workout-dialog">Отмена</button><button class="button primary" type="submit"><i data-lucide="calendar-plus"></i> Добавить</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="complete-dialog" class="modal wide-modal">
+      <form id="complete-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Дневник</p><h2 id="complete-title">Завершить тренировку</h2></div><button class="icon-button" type="button" data-close-dialog="complete-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <input name="workout_id" type="hidden" />
+        <label>Выполнено<input name="completed_at" type="datetime-local" required /></label>
+        <div class="form-grid wellness-grid"><label>Энергия<input name="wellness_energy" type="number" min="1" max="5" /></label><label>Сон<input name="wellness_sleep" type="number" min="1" max="5" /></label><label>Крепатура<input name="wellness_soreness" type="number" min="1" max="5" /></label><label class="full-field">Комментарий<textarea name="completion_notes" maxlength="1000" rows="2"></textarea></label></div>
+        <div id="complete-exercises" class="complete-list"></div>
+        <div class="modal-actions"><button class="button ghost" type="button" data-close-dialog="complete-dialog">Отмена</button><button class="button primary" type="submit"><i data-lucide="check-check"></i> Сохранить</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="builder-dialog" class="modal wide-modal">
+      <form id="builder-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Конструктор</p><h2 id="builder-title">Упражнения тренировки</h2></div><button class="icon-button" type="button" data-close-dialog="builder-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <input name="workout_id" type="hidden" />
+        <div class="form-grid"><label class="full-field">Добавить упражнение<select id="builder-exercise-select"></select></label><label>Подходы<input id="builder-sets" type="number" min="1" value="3" /></label><label>Повторы<input id="builder-reps" type="number" min="1" value="10" /></label><label>Вес<input id="builder-weight" type="number" min="0" step="0.5" /></label></div>
+        <div class="modal-actions"><button class="button secondary" type="button" data-action="builder-add-exercise"><i data-lucide="plus"></i> Добавить</button></div>
+        <div id="builder-list" class="complete-list"></div>
+      </form>
+    </dialog>
+
+    <dialog id="goal-dialog" class="modal">
+      <form id="goal-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Новая цель</p><h2>Добавить цель</h2></div><button class="icon-button" type="button" data-close-dialog="goal-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <div class="form-grid"><label>Название<input name="title" maxlength="255" required /></label><label>Метрика<input name="metric" maxlength="80" placeholder="тренировки, кг, км" required /></label><label>Текущее<input name="current_value" type="number" min="0" step="0.1" value="0" /></label><label>Цель<input name="target_value" type="number" min="0.1" step="0.1" required /></label><label class="full-field">Срок<input name="deadline_at" type="datetime-local" /></label></div>
+        <div class="modal-actions"><button class="button ghost" type="button" data-close-dialog="goal-dialog">Отмена</button><button class="button primary" type="submit"><i data-lucide="target"></i> Добавить</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="template-dialog" class="modal wide-modal">
+      <form id="template-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Шаблон</p><h2>Создать из текущей тренировки</h2></div><button class="icon-button" type="button" data-close-dialog="template-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <div class="form-grid"><label>Название<input name="title" maxlength="255" required /></label><label>Тренировка<select name="workout_id" required></select></label><label class="full-field">Описание<textarea name="description" maxlength="1000" rows="2"></textarea></label></div>
+        <div class="modal-actions"><button class="button ghost" type="button" data-close-dialog="template-dialog">Отмена</button><button class="button primary" type="submit"><i data-lucide="copy-check"></i> Создать</button></div>
+      </form>
+    </dialog>
+
+    <dialog id="exercise-dialog" class="modal">
+      <form id="exercise-form" method="dialog">
+        <div class="modal-header"><div><p class="eyebrow">Библиотека</p><h2>Новое упражнение</h2></div><button class="icon-button" type="button" data-close-dialog="exercise-dialog" aria-label="Закрыть" title="Закрыть"><i data-lucide="x"></i></button></div>
+        <div class="form-grid"><label>Название<input name="name" maxlength="255" required /></label><label>Тип<select name="train" required><option value="силовая_тренировка">Силовая</option><option value="кардио">Кардио</option><option value="растяжка">Растяжка</option></select></label><label>Мышцы<select name="muscle"><option value="">Не выбрано</option><option value="грудные">Грудные</option><option value="пресс">Пресс</option><option value="широчайшие">Широчайшие</option><option value="плечи">Плечи</option><option value="бицепс">Бицепс</option><option value="трицепс">Трицепс</option><option value="ягодичные">Ягодичные</option><option value="квадрицепс">Квадрицепс</option><option value="задняя_часть_бедра">Задняя поверхность бедра</option><option value="икры">Икры</option></select></label><label class="full-field">Описание<textarea name="description" maxlength="1000" rows="3" placeholder="Короткая подсказка по технике"></textarea></label></div>
+        <div class="modal-actions"><button class="button ghost" type="button" data-close-dialog="exercise-dialog">Отмена</button><button class="button primary" type="submit"><i data-lucide="plus"></i> Добавить</button></div>
+      </form>
+    </dialog>
+
+    <div id="toast" class="toast" role="status" hidden></div>
+  </body>
+</html>

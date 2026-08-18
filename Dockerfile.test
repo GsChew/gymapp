@@ -1,0 +1,18 @@
+FROM python:3.13-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install --no-install-recommends -y chromium chromium-driver \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV UI_HEADLESS=1 \
+    UI_BROWSER_BINARY=/usr/bin/chromium \
+    UI_DRIVER_BINARY=/usr/bin/chromedriver
+
+COPY requirements.txt requirements-test.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-test.txt
+
+COPY . .
+
+CMD ["pytest", "-q"]

@@ -4,7 +4,7 @@ import uuid
 from loguru import logger
 from redis.exceptions import RedisError
 
-from src.schemas.RateLimit import SRateLimitRule, SRateLimitResponse
+from src.schemas.rate_limit import SRateLimitRule, SRateLimitResponse
 from src.rate_limit.redis import redis_client
 
 
@@ -12,6 +12,7 @@ async def get_ratelimit_result(
     identifier: str,
     rule: SRateLimitRule,
 ) -> SRateLimitResponse:
+    """Return the current rate-limit decision for a key and rule."""
     redis_key = f"rate_limit:{rule.scope}:{identifier}"
 
     now_ms = int(time.time() * 1000)

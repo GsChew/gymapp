@@ -5,8 +5,7 @@ from alembic import context
 
 from src.config import settings
 from src.database import Model
-from src.models.UserModels import User
-from src.models.WorkoutModels import WorkoutModel, WorkoutExercise, ExerciseModel
+import src.models  # noqa: F401  # Import models so Alembic can read Model.metadata.
 
 config = context.config
 
@@ -24,7 +23,7 @@ target_metadata = Model.metadata
 
 
 def run_migrations_offline() -> None:
-    url = settings.database_url
+    url = settings.alembic_database_url
     context.configure(
         url=url,
         target_metadata=target_metadata,

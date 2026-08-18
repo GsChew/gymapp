@@ -6,11 +6,12 @@ from src.celery_app import celery_app
 from src.database import new_session
 from src.repository.notifications import NotificationsRepository
 from src.repository.workouts import WorkoutRepository
-from src.schemas.NotificationSchemas import SNotificationCreate
+from src.schemas.notification import SNotificationCreate
 
 
 @celery_app.task(name="check_workout_notifications")
 def check_workout_notifications():
+    """Run the scheduled workout notification task."""
     logger.info("Celery task started: check_workout_notifications")
 
     try:
@@ -24,6 +25,7 @@ def check_workout_notifications():
 
 
 async def _check_workout_notifications():
+    """Create due workout notifications and mark them as sent."""
     now = datetime.now(UTC)
 
     logger.info(f"Checking workout notifications now={now}")

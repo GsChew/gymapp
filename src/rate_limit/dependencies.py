@@ -2,8 +2,8 @@ from fastapi import HTTPException, Request, Depends
 from loguru import logger
 
 from src.auth.dependencies import get_current_user
-from src.models.UserModels import User
-from src.schemas.RateLimit import SRateLimitRule, SRateLimitResponse
+from src.models.user import User
+from src.schemas.rate_limit import SRateLimitRule, SRateLimitResponse
 from src.rate_limit.limiter import get_ratelimit_result
 
 
@@ -12,6 +12,7 @@ def check_result(
     rule: SRateLimitRule,
     identifier: str,
 ) -> None:
+    """Raise an HTTP error when a rate-limit result denies the request."""
     if not result.allowed:
         logger.warning(
             f"Rate limit exceeded "
@@ -32,7 +33,9 @@ def check_result(
 
 
 def limit_by_ip(rule: SRateLimitRule):
+    """Create a dependency that rate-limits requests by client IP address."""
     async def dependency(request: Request) -> None:
+        """Evaluate the configured rate-limit rule for the request."""
         identifier = request.client.host if request.client else None
 
         if not identifier:
@@ -60,9 +63,11 @@ def limit_by_ip(rule: SRateLimitRule):
 
 
 def limit_by_user(rule: SRateLimitRule):
+    """Create a dependency that rate-limits requests by authenticated user."""
     async def dependency(
         user: User = Depends(get_current_user),
     ) -> None:
+        """Evaluate the configured rate-limit rule for the request."""
         identifier = str(user.id)
 
         result = await get_ratelimit_result(

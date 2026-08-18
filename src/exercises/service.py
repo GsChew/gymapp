@@ -2,10 +2,10 @@ from loguru import logger
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.WorkoutModels import MuscleTypes, TrainTypes
-from src.models.WorkoutModels import ExerciseModel
+from src.models.workout import MuscleTypes, TrainTypes
+from src.models.workout import ExerciseModel
 from src.repository.exercises import ExerciseRepository
-from src.schemas.WorkoutSchemas import (
+from src.schemas.workout import (
     SExerciseUpdate,
     SExerciseCreate,
 )
@@ -19,6 +19,7 @@ async def get_exercises(
     train_type: TrainTypes | None = None,
 ) -> list[ExerciseModel]:
 
+    """Return exercises matching pagination and optional filters."""
     logger.info(
         f"Getting exercises "
         f"limit={limit} "
@@ -53,6 +54,7 @@ async def get_exercise_by_id(
     id: int,
 ) -> ExerciseModel:
 
+    """Return one exercise by id."""
     logger.info(
         f"Getting exercise "
         f"exercise_id={id}"
@@ -97,9 +99,10 @@ async def create_exercise(
     data: SExerciseCreate,
 ) -> ExerciseModel:
 
+    """Create a new exercise in the library."""
     logger.info(
         f"Creating exercise "
-        f"title={data.title}"
+        f"name={data.name}"
     )
 
     try:
@@ -114,7 +117,7 @@ async def create_exercise(
 
         logger.exception(
             f"Database error while creating exercise "
-            f"title={data.title}"
+            f"name={data.name}"
         )
 
         raise ValueError(
@@ -124,7 +127,7 @@ async def create_exercise(
     logger.info(
         f"Exercise created successfully "
         f"exercise_id={exercise.id} "
-        f"title={exercise.title}"
+        f"name={exercise.name}"
     )
 
     return exercise
@@ -136,6 +139,7 @@ async def update_exercise(
     data: SExerciseUpdate,
 ) -> ExerciseModel:
 
+    """Update an exercise in the library."""
     logger.info(
         f"Updating exercise "
         f"exercise_id={id}"
@@ -195,6 +199,7 @@ async def delete_exercise(
     id: int,
 ) -> ExerciseModel:
 
+    """Delete an exercise from the library."""
     logger.info(
         f"Deleting exercise "
         f"exercise_id={id}"

@@ -1,4 +1,4 @@
-from schemas.RateLimit import SRateLimitRule
+from src.schemas.rate_limit import SRateLimitRule
 
 
 AUTH_LOGIN_IP = SRateLimitRule("auth_login_ip", 10, 60)

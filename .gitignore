@@ -6,6 +6,7 @@ __pycache__/
 # Virtual environments
 venv/
 .venv/
+.venv-test/
 env/
 ENV/
 
@@ -13,10 +14,12 @@ ENV/
 .env
 .env.*
 !.env.example
+!.env.test.example
 
 # Logs
 logs/
 *.log
+celerybeat-schedule*
 
 # Databases
 *.sqlite3
@@ -36,6 +39,7 @@ alembic/versions/*.pyc
 docker-compose.yml
 docker-compose.override.yml
 docker-compose.local.yml
+!docker-compose.test.yml
 
 # Coverage
 .coverage
@@ -44,6 +48,8 @@ coverage.xml
 
 # Pytest
 .pytest_cache/
+allure-results/
+allure-report/
 
 # Mypy
 .mypy_cache/
@@ -52,4 +58,3 @@ coverage.xml
 .ruff_cache/
 
 .static/
-static/

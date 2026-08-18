@@ -1,0 +1,290 @@
+GYM PLANNER: ГАЙД ПО ТЕСТИРОВАНИЮ ДЛЯ MIDDLE QA PYTHON
+=========================================================
+
+Этот файл не просто перечисляет команды. Его цель — показать логику работы
+middle QA: сначала оценить риск, потом выбрать самый дешёвый тест, который
+доказывает нужное поведение, и не смешивать тестовые данные с рабочими.
+
+1. UNIT-ТЕСТЫ И API-ТЕСТЫ: В ЧЁМ РАЗНИЦА
+-----------------------------------------
+Unit-тест проверяет маленький изолированный кусок логики. В нём нет настоящих
+HTTP-запросов, БД, Redis и браузера. Например, `test_security.py` проверяет,
+что пароль хешируется, неверный пароль не проходит, а JWT получает правильный
+subject, тип и срок действия.
+
+Плюсы unit-тестов:
+  - очень быстрые;
+  - точная причина падения;
+  - не требуют инфраструктуры;
+  - подходят для алгоритмов, validation и business branching.
+
+API-тест проверяет несколько слоёв вместе через настоящий HTTP-вызов FastAPI:
+router -> Pydantic -> dependencies -> service -> repository -> ORM -> PostgreSQL.
+Например, регистрация -> логин -> refresh -> /auth/me. Такой тест медленнее,
+но ловит проблемы, которые unit-тест не увидит: неверный HTTP status, сломанную
+dependency injection, несовпадение схемы и модели, отсутствие commit, RBAC,
+ownership и ошибку интеграции с БД.
+
+Правило выбора уровня:
+  - алгоритм, ветвление, преобразование данных — unit;
+  - контракт endpoint и сохранение данных — API;
+  - статический DOM/CSS/селекторы — UI contract;
+  - JavaScript, форма, модалка в браузере с mocked API — browser UI;
+  - полный путь пользователя через реальный frontend + backend + БД — E2E.
+
+2. ТЕСТОВАЯ ПИРАМИДА ПРОЕКТА
+----------------------------
+  - Unit: security, Pydantic-схемы, rate limit, Celery decision logic,
+    service-to-repository contracts.
+  - API + PostgreSQL + Redis: auth, CRUD, роли, tenant isolation,
+    уведомления, starter plan и Lua sliding window.
+  - UI: статический contract и browser UI с mocked API.
+  - Behave: читаемые бизнес-сценарии.
+  - Playwright/Selenium E2E: критический пользовательский путь в браузере
+    против disposable environment.
+  - Locust: p95, error rate и узкие места под нагрузкой.
+
+Не нужно тестировать каждый private method. Middle QA спрашивает: что может
+сломаться, насколько это заметит пользователь и какой тест найдёт дефект раньше
+и дешевле. В этом проекте самые рискованные области — auth, роли, изоляция
+пользовательских данных, идемпотентность starter plan, фоновые уведомления и
+rate limit.
+
+3. ИЗОЛЯЦИЯ ТЕСТОВЫХ ДАННЫХ
+---------------------------
+API-тесты не используют обычную БД `gymapp`. `tests/conftest.py` создаёт
+`gymapp_test`, перед каждым тестом пересоздаёт таблицы и удаляет их после
+теста. В fixture есть защита: если TEST_DATABASE_URL указывает на `gymapp` или
+не оканчивается на `_test`, pytest остановится до destructive setup.
+
+BDD, Playwright, Selenium и Locust работают против реального URL. Они должны
+запускаться только против disposable environment. E2E создают уникальных
+пользователей; в продукте пока нет endpoint для их удаления. Это отдельное QA
+finding: для полноценного black-box cleanup нужен admin/delete-user endpoint
+либо test-fixture на уровне инфраструктуры.
+
+4. УСТАНОВКА И КОМАНДЫ
+----------------------
+Подними инфраструктуру:
+
+  docker compose up -d --build
+
+Установи QA-инструменты поверх уже работающего окружения приложения:
+
+  source .venv/bin/activate
+  pip install -r requirements-test.txt
+
+Быстрый локальный feedback без инфраструктуры:
+
+  pytest tests/unit -q
+
+UI без backend:
+
+  pytest tests/ui -q
+
+Browser UI без backend, но с настоящим Chromium и mocked API:
+
+  playwright install chromium
+  RUN_UI_BROWSER=1 pytest tests/ui/test_browser_ui.py -q
+
+API и Redis-интеграции на изолированной `gymapp_test`:
+
+  pytest tests/api -q
+
+Строгий режим для CI, где контейнеры обязательны:
+
+  REQUIRE_TEST_INFRA=1 pytest tests/api -q
+
+Без `REQUIRE_TEST_INFRA=1` локальный запуск помечает API-тесты как `skipped`, если
+PostgreSQL или Redis не подняты. Это не зелёный интеграционный прогон, а явный
+сигнал, что инфраструктура недоступна. В CI флаг обязателен: отсутствие контейнера
+должно ломать pipeline, а не создавать ложное впечатление о проверенных интеграциях.
+
+Весь безопасный набор:
+
+  pytest -q
+
+Один тест с подробностями:
+
+  pytest tests/api/test_workouts_api.py -xvv
+
+Покрытие полезно после стабилизации поведения:
+
+  pytest tests/unit tests/api --cov=src --cov-report=term-missing
+
+Локальный быстрый quality gate по покрытию без внешней инфраструктуры:
+
+  pytest tests/unit tests/smoke tests/contract \
+    --cov=src --cov=main --cov-report=term-missing --cov-fail-under=70
+
+На 2026-07-05 этот набор дает 71.41% общего покрытия: 103 passed, 2 skipped.
+Skip'и относятся к live smoke через requests и требуют RUN_LIVE_SMOKE=1.
+
+5. ЧТО ПРОВЕРЯЕТ КАЖДЫЙ НАБОР
+-----------------------------
+tests/unit/test_security.py
+  Хеширование, типы токенов, срок действия и уникальность JWT после refresh.
+
+tests/unit/test_schemas.py
+  Кириллический логин, минимальная длина пароля и валидность workout-exercise.
+
+tests/unit/test_rate_limit.py
+  Формирование 429/Retry-After, разбор Redis-ответа и fail-open политику при
+  падении Redis.
+
+tests/unit/test_notification_task.py
+  Логику Celery: due workout создаёт notification и помечается отправленным;
+  пустая выборка не делает commit.
+
+tests/unit/test_workout_service.py
+  Контракт между service и repository. Это защищает от уже встречавшегося бага:
+  dict передавался туда, где репозиторий ожидал Pydantic-схему.
+
+tests/unit/test_auth_service.py
+  Регистрация с hashing, duplicate user, login success/fail, DB rollback и refresh
+  token flow.
+
+tests/unit/test_users_service.py
+  Trainer/admin user list, смена роли, not found и rollback на ошибке БД.
+
+tests/unit/test_workout_exercise_service.py
+  Ownership check, создание связи workout-exercise, фильтрация, empty update,
+  not found, delete и rollback.
+
+tests/unit/test_progress_service.py
+  Чистая расчетная логика прогресса: volume, week start, summary, weekly volume,
+  records, history, not found и DB error wrapping.
+
+tests/api/test_auth_api.py
+  Register -> login -> refresh -> /me, отсутствие password hash в ответе,
+  duplicate = 409 и неверные креды = 401.
+
+tests/api/test_workouts_api.py
+  CRUD, ownership, auth, starter plan и идемпотентность. Двойной клик или retry
+  не должны создать две одинаковые готовые недели.
+
+tests/api/test_exercises_api.py
+  RBAC: user получает 403, trainer создаёт и фильтрует упражнения.
+
+tests/api/test_notifications_api.py и test_workout_exercises_api.py
+  Notification CRUD, создание связи workout-exercise и запрет добавлять
+  упражнение в тренировку другого пользователя.
+
+tests/api/test_rate_limit_redis.py
+  Использует настоящий Redis DB 15 и настоящий Lua-скрипт: две попытки проходят,
+  третья блокируется. Это инфраструктурная интеграция, а не mock.
+
+tests/smoke/test_app_smoke.py
+  Быстрый набор без внешней инфраструктуры: healthcheck, SPA entrypoint,
+  критичные static assets, наличие основных OpenAPI routes, security scheme,
+  отказ защищенных endpoint'ов без токена и 404 с request id. Live smoke через
+  requests запускается только при RUN_LIVE_SMOKE=1.
+
+6. BDD С BEHAVE
+---------------
+Feature-файлы описывают наблюдаемое бизнес-поведение, а не CSS-селекторы и SQL:
+
+  behave -D base_url=http://127.0.0.1:8000
+
+Для проверки только структуры сценариев и привязки шагов без HTTP-вызовов:
+
+  behave --dry-run
+
+`.feature` должен читаться продактом и разработчиком. Детали HTTP и assertions
+живут в step definitions.
+
+7. BROWSER UI, E2E И PAGE OBJECT MODEL
+--------------------------------------
+Browser UI — это не E2E. Он открывает frontend в настоящем браузере, но API
+мокается внутри Playwright. Такой слой проверяет DOM-состояния, JS-переключения,
+модалки, drawer, навигацию и рендер mocked data без PostgreSQL и без backend.
+
+Browser UI:
+
+  playwright install chromium
+  RUN_UI_BROWSER=1 pytest tests/ui/test_browser_ui.py -q
+
+Playwright — основной современный UI-набор:
+
+  playwright install chromium
+  RUN_E2E=1 BASE_URL=http://127.0.0.1:8000 \
+    pytest tests/e2e/test_browser_playwright.py -q
+
+Selenium нужен для Grid/корпоративной инфраструктуры:
+
+  RUN_SELENIUM=1 SELENIUM_REMOTE_URL=http://localhost:4444/wd/hub \
+    BASE_URL=http://127.0.0.1:8000 \
+    pytest tests/e2e/test_browser_selenium.py -q
+
+Page Object Model лежит в `tests/e2e/pages`. Тест говорит о бизнес-шаге:
+"зарегистрировался -> увидел dashboard -> создал тренировку". Селекторы,
+ожидания и UI-механика находятся в page object. При изменении разметки меняется
+один объект, а не каждый тест.
+
+Текущий Playwright-набор покрывает:
+  - регистрацию, создание тренировки и цели;
+  - доступность основных разделов dashboard;
+  - создание шаблона тренировки;
+  - drawer уведомлений и logout.
+
+Текущий Selenium-набор покрывает:
+  - регистрацию и переход к целям;
+  - создание тренировки;
+  - навигацию по ключевым разделам и logout.
+
+Текущий browser UI-набор покрывает:
+  - переключение login/register форм без backend;
+  - рендер authenticated shell на mocked API;
+  - открытие/закрытие dialog и notification drawer.
+
+В Playwright и Selenium-тестах ключевые проверки должны быть явными `assert`:
+page object может ждать элемент и возвращать текст/boolean, но итоговое ожидание
+должно читаться в тесте.
+
+Не делай god object на всё приложение. Один экран или осмысленный компонент —
+один page object. Assertions допустимо держать в page object как `expect_*`,
+если они описывают состояние экрана; сложные бизнес-assertions лучше оставить
+в самом тесте.
+
+8. НАГРУЗКА С LOCUST
+--------------------
+Locust по умолчанию выполняет только read-профиль. Это осознанно: массовая
+регистрация и login с одного IP будут честно заблокированы rate limit и исказят
+результат нагрузки бизнес-endpoint'ов.
+
+Создай disposable test user, возьми его access token и передай явно:
+
+  LOAD_TEST_TOKEN=<access_token> \
+    locust -f tests/load/locustfile.py -H http://127.0.0.1:8000
+
+Headless smoke на 20 virtual users:
+
+  LOAD_TEST_TOKEN=<access_token> \
+    locust -f tests/load/locustfile.py -H http://127.0.0.1:8000 \
+    --headless -u 20 -r 2 -t 2m --html reports/locust.html
+
+Чтобы разрешить write-нагрузку, добавь LOAD_TEST_WRITE=1. Делай это только на
+отдельной среде: записи тренировок будут намеренно создаваться.
+
+До запуска согласуй SLO: например p95 GET /workouts < 300 ms, error rate < 1%.
+Одновременно смотри Docker CPU/RAM, PostgreSQL connections, Redis и RabbitMQ.
+Один клиентский отчёт Locust без серверных метрик не доказывает отсутствие
+узкого места.
+
+9. КАК РАЗБИРАТЬ ПАДЕНИЕ
+------------------------
+1. Перезапусти самый маленький тест с -xvv.
+2. Классифицируй проблему: данные, контракт, окружение, права или UI timing.
+3. Сначала прочитай HTTP response, потом application logs.
+4. Для 500 повтори тот же запрос через curl и смотри:
+   docker compose logs app --tail=200
+5. Для E2E сохрани screenshot/trace и проверь network request.
+6. Не добавляй retry сразу: он часто маскирует race condition.
+
+10. ЧТО ЕЩЁ УЛУЧШИТЬ
+---------------------
+  - Добавить admin/delete-user endpoint для cleanup black-box тестов.
+  - Ввести CI jobs: unit+API на PR, Playwright nightly, Selenium compatibility.
+  - Сохранять Playwright trace/video как CI artifact.
+  - Добавить отдельную staging/load среду, не нагружать ноутбук разработчика.
+  - Добавить Makefile: test-unit, test-api, test-e2e, test-load.

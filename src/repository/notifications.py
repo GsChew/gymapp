@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func
 
 from src.models import NotificationModel
-from src.schemas.NotificationSchemas import SNotificationCreate
+from src.schemas.notification import SNotificationCreate
 
 
 class NotificationsRepository:
@@ -13,6 +13,7 @@ class NotificationsRepository:
             session: AsyncSession,
             data: SNotificationCreate,
     ) -> NotificationModel:
+        """Create a notification record."""
         notification = NotificationModel(**data.model_dump())
 
         session.add(notification)
@@ -30,6 +31,7 @@ class NotificationsRepository:
             offset: int,
             is_read: bool | None = None,
     ) -> list[NotificationModel]:
+        """Return notifications for the current user."""
         stmt = (
             select(NotificationModel)
             .where(NotificationModel.user_id == user_id)
@@ -56,6 +58,7 @@ class NotificationsRepository:
             user_id: int,
             id: int,
     ) -> NotificationModel | None:
+        """Return one notification owned by the user."""
         stmt = select(NotificationModel).where(
             NotificationModel.user_id == user_id,
             NotificationModel.id == id,
@@ -72,6 +75,7 @@ class NotificationsRepository:
             user_id: int,
             id: int,
     ) -> NotificationModel | None:
+        """Mark a notification as read for its owner."""
         notification = await cls.get_notification_by_id(
             session=session,
             user_id=user_id,
@@ -95,6 +99,7 @@ class NotificationsRepository:
             user_id: int,
             id: int,
     ) -> NotificationModel | None:
+        """Delete a notification owned by the user."""
         notification = await cls.get_notification_by_id(
             session=session,
             user_id=user_id,
@@ -115,9 +120,10 @@ class NotificationsRepository:
             session: AsyncSession,
             user_id: int,
     ) -> int:
+        """Return the number of unread notifications for a user."""
         stmt = select(func.count()).where(
             NotificationModel.user_id == user_id,
-            NotificationModel.is_read == False,
+            NotificationModel.is_read.is_(False),
         )
 
         result = await session.execute(stmt)
@@ -130,6 +136,7 @@ class NotificationsRepository:
             session: AsyncSession,
             notifications_data: list[SNotificationCreate],
     ) -> list[NotificationModel]:
+        """Create multiple notification records without committing."""
         notifications = [
             NotificationModel(**data.model_dump())
             for data in notifications_data

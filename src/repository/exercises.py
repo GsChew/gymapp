@@ -1,9 +1,9 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
-from models.WorkoutModels import MuscleTypes, TrainTypes
-from src.models.WorkoutModels import ExerciseModel
-from src.schemas.WorkoutSchemas import SExerciseCreate, SExerciseUpdate
+from src.models.workout import MuscleTypes, TrainTypes
+from src.models.workout import ExerciseModel
+from src.schemas.workout import SExerciseCreate, SExerciseUpdate
 
 
 class ExerciseRepository:
@@ -17,13 +17,14 @@ class ExerciseRepository:
             muscle: MuscleTypes | None = None,
             train_type: TrainTypes | None = None,
     ) -> list[ExerciseModel]:
+        """Return exercises matching pagination and optional filters."""
         stmt = select(ExerciseModel)
 
         if muscle is not None:
             stmt = stmt.where(ExerciseModel.muscle == muscle)
 
         if train_type is not None:
-            stmt = stmt.where(ExerciseModel.train_type == train_type)
+            stmt = stmt.where(ExerciseModel.train == train_type)
 
         stmt = (
             stmt
@@ -42,6 +43,7 @@ class ExerciseRepository:
         id: int,
         session: AsyncSession,
     ) -> ExerciseModel | None:
+        """Return one exercise by id."""
         stmt = select(ExerciseModel).where(ExerciseModel.id == id)
         result = await session.execute(stmt)
         return result.scalar_one_or_none()
@@ -52,6 +54,7 @@ class ExerciseRepository:
         data: SExerciseCreate,
         session: AsyncSession,
     ) -> ExerciseModel:
+        """Create a new exercise in the library."""
         exercise = ExerciseModel(**data.model_dump())
         session.add(exercise)
         await session.commit()
@@ -65,6 +68,7 @@ class ExerciseRepository:
         data: SExerciseUpdate,
         session: AsyncSession,
     ) -> ExerciseModel | None:
+        """Update an exercise in the library."""
         exercise = await cls.get_exercise_by_id(id=id, session=session)
         if exercise is None:
             return None
@@ -84,6 +88,7 @@ class ExerciseRepository:
         id: int,
         session: AsyncSession,
     ) -> ExerciseModel | None:
+        """Delete an exercise from the library."""
         exercise = await cls.get_exercise_by_id(id=id, session=session)
 
         if exercise is None:

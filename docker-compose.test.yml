@@ -1,0 +1,89 @@
+name: gymapp-tests
+
+services:
+  test-db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: gymapp_test
+      POSTGRES_USER: gym_test
+      POSTGRES_PASSWORD: gym_test
+    ports:
+      - "55432:5432"
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gym_test -d gymapp_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  test-redis:
+    image: redis:7-alpine
+    ports:
+      - "56379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  test-rabbitmq:
+    image: rabbitmq:3-alpine
+    ports:
+      - "55672:5672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 3s
+      timeout: 5s
+      retries: 30
+
+  test-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    command: alembic upgrade head
+    depends_on:
+      test-db:
+        condition: service_healthy
+    environment: &test-environment
+      DATABASE_URL: postgresql+asyncpg://gym_test:gym_test@test-db:5432/gymapp_test
+      ALEMBIC_DATABASE_URL: postgresql+psycopg://gym_test:gym_test@test-db:5432/gymapp_test
+      TEST_DATABASE_URL: postgresql+asyncpg://gym_test:gym_test@test-db:5432/gymapp_test
+      TEST_ALEMBIC_DATABASE_URL: postgresql+psycopg://gym_test:gym_test@test-db:5432/gymapp_test
+      SECRET_KEY: docker-compose-test-secret-not-for-production
+      ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 30
+      REFRESH_TOKEN_EXPIRE_DAYS: 7
+      CELERY_BROKER_URL: amqp://guest:guest@test-rabbitmq:5672//
+      CELERY_RESULT_BACKEND: redis://test-redis:6379/1
+      REDIS_URL: redis://test-redis:6379/0
+      TEST_REDIS_URL: redis://test-redis:6379/0
+      LOG_LEVEL: WARNING
+      LOG_DIR: /tmp/gymapp-test-logs
+      LOG_JSON: "false"
+      REQUIRE_TEST_INFRA: "1"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.test
+    depends_on:
+      test-migrate:
+        condition: service_completed_successfully
+      test-redis:
+        condition: service_healthy
+      test-rabbitmq:
+        condition: service_healthy
+    environment:
+      <<: *test-environment
+    command: >-
+      pytest -q
+      --cov=src
+      --cov=main
+      --cov-report=term-missing
+      --cov-report=xml
+      --cov-report=html
+      --alluredir=allure-results
+    volumes:
+      - ./allure-results:/app/allure-results
+      - ./htmlcov:/app/htmlcov

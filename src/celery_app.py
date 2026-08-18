@@ -1,7 +1,10 @@
 from celery import Celery
 
 from src.config import settings
+from src.logging_config import configure_logging
 
+
+configure_logging()
 
 celery_app = Celery(
     "gymapp",

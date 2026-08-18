@@ -4,7 +4,7 @@ from loguru import logger
 
 from src.models import NotificationModel
 from src.repository.notifications import NotificationsRepository
-from src.schemas.NotificationSchemas import SNotificationCreate
+from src.schemas.notification import SNotificationCreate
 
 
 async def create_notification(
@@ -12,6 +12,7 @@ async def create_notification(
     data: SNotificationCreate,
 ) -> NotificationModel:
 
+    """Create a notification record."""
     logger.info(
         f"Creating notification "
         f"user_id={data.user_id}"
@@ -51,6 +52,7 @@ async def get_notifications(
     is_read: bool | None,
 ) -> list[NotificationModel]:
 
+    """Return notifications for the current user."""
     logger.info(
         f"Getting notifications "
         f"user_id={user_id} "
@@ -90,6 +92,7 @@ async def get_notification_by_id(
     user_id: int,
     id: int,
 ) -> NotificationModel:
+    """Return one notification owned by the user."""
     logger.info(
         f"Getting notification "
         f"user_id={user_id} "
@@ -134,6 +137,7 @@ async def mark_notification_as_read(
     id: int,
 ) -> NotificationModel:
 
+    """Mark a notification as read for its owner."""
     logger.info(
         f"Marking notification as read "
         f"user_id={user_id} "
@@ -184,6 +188,7 @@ async def delete_notification(
     user_id: int,
     id: int,
 ) -> NotificationModel:
+    """Delete a notification owned by the user."""
     logger.info(
         f"Deleting notification "
         f"user_id={user_id} "
@@ -229,6 +234,7 @@ async def get_unread_count_by_user_id(
     session: AsyncSession,
     user_id: int,
 ) -> int:
+    """Return the number of unread notifications for a user."""
     logger.info(
         f"Getting unread notifications count "
         f"user_id={user_id}"

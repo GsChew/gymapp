@@ -3,8 +3,8 @@ from datetime import datetime
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.models.WorkoutModels import WorkoutModel, StatusTypes
-from src.schemas.WorkoutSchemas import SWorkoutCreate, SWorkoutUpdate
+from src.models.workout import WorkoutModel, StatusTypes
+from src.schemas.workout import SWorkoutCreate, SWorkoutUpdate
 
 
 class WorkoutRepository:
@@ -16,6 +16,7 @@ class WorkoutRepository:
         name_of_workout: str,
         session: AsyncSession,
     ) -> WorkoutModel | None:
+        """Return one workout by title for the user."""
         stmt = select(WorkoutModel).where(
             WorkoutModel.user_id == user_id,
             WorkoutModel.title == name_of_workout,
@@ -33,6 +34,7 @@ class WorkoutRepository:
             offset: int,
             status: StatusTypes | None,
     ) -> list[WorkoutModel]:
+        """Return workouts for the user with pagination and optional filters."""
         stmt = select(WorkoutModel).where(
             WorkoutModel.user_id == user_id
         )
@@ -58,6 +60,7 @@ class WorkoutRepository:
         user_id: int,
         session: AsyncSession,
     ) -> WorkoutModel | None:
+        """Return one workout by id for the user."""
         stmt = select(WorkoutModel).where(
             WorkoutModel.id == id,
             WorkoutModel.user_id == user_id,
@@ -72,6 +75,7 @@ class WorkoutRepository:
         user_id: int,
         session: AsyncSession,
     ) -> WorkoutModel:
+        """Create a workout for the user."""
         workout = WorkoutModel(
             user_id=user_id,
             **data.model_dump()
@@ -89,11 +93,15 @@ class WorkoutRepository:
         data: SWorkoutUpdate,
         session: AsyncSession,
     ) -> WorkoutModel | None:
+        """Update a workout owned by the user."""
         workout = await cls.get_workout_by_id(id, user_id, session)
         if workout is None:
             return None
 
         update_data = data.model_dump(exclude_unset=True)
+
+        if "remind_at" in update_data:
+            update_data["notification_sent"] = False
 
         for field, value in update_data.items():
             setattr(workout, field, value)
@@ -109,6 +117,7 @@ class WorkoutRepository:
         user_id: int,
         session: AsyncSession,
     ) -> WorkoutModel | None:
+        """Delete a workout owned by the user."""
         workout = await cls.get_workout_by_id(id, user_id, session)
         if workout is None:
             return None
@@ -123,6 +132,7 @@ class WorkoutRepository:
             session: AsyncSession,
             now: datetime,
     ) -> list[WorkoutModel]:
+        """Return planned workouts that are due for reminders."""
         stmt = select(WorkoutModel).where(
             WorkoutModel.status == StatusTypes.planned,
             WorkoutModel.notification_sent.is_(False),
@@ -139,6 +149,7 @@ class WorkoutRepository:
             session: AsyncSession,
             workout_ids: list[int],
     ) -> None:
+        """Mark notification reminders as sent for the given workouts."""
         if not workout_ids:
             return
 

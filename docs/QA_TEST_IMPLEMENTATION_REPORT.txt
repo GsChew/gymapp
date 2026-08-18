@@ -1,0 +1,274 @@
+ОТЧЕТ О РЕАЛИЗАЦИИ ТЕСТОВ
+Проект: Gym Planner / Stride
+Дата: 2026-07-05
+
+1. Объем работ
+---------------
+
+В проект добавлено и расширено автоматизированное тестовое покрытие на базе
+pytest-стека:
+
+- smoke-тесты;
+- unit-тесты;
+- API integration/regression-тесты;
+- security-тесты;
+- contract-тесты OpenAPI;
+- infrastructure integration-тесты;
+- end-to-end тесты через Playwright и Selenium;
+- нагрузочные тесты через Locust;
+- BDD/acceptance-слой через behave уже присутствовал в проекте и остается частью
+  тестовой стратегии.
+
+Набор включает позитивные, негативные и граничные сценарии.
+
+2. Архитектура тестов и паттерны
+--------------------------------
+
+Добавлен общий support-слой:
+
+- tests/support/config.py
+  Singleton-style cached test configuration через get_test_settings().
+
+- tests/support/factories.py
+  Factory pattern:
+  - UserPayloadFactory
+
+  Builder pattern:
+  - WorkoutPayloadBuilder
+  - WorkoutExercisePayloadBuilder
+
+- tests/support/allure.py
+  Совместимый wrapper для Allure. Если allure-pytest установлен, тесты используют
+  реальные декораторы и steps. Если пакет не установлен, локальный запуск не
+  ломается благодаря no-op fallback.
+
+Используется Page Object Model:
+
+- tests/e2e/pages/playwright_pages.py
+- tests/e2e/pages/selenium_pages.py
+
+Page object хранит селекторы, ожидания и действия на экране, а тест описывает
+пользовательский сценарий.
+
+3. Добавленные и расширенные тесты
+----------------------------------
+
+Smoke:
+
+- tests/smoke/test_app_smoke.py
+  Проверяет in-process /health, SPA entrypoint, static assets, наличие основных
+  OpenAPI routes, security scheme, отказ защищенных endpoint'ов без токена,
+  404 с request id и опциональный live smoke через requests.
+
+Contract:
+
+- tests/contract/test_openapi_contract.py
+  Проверяет OpenAPI-контракт для StatusTypes, goals и templates.
+
+Security:
+
+- tests/security/test_auth_security_api.py
+  Проверяет негативные сценарии: отсутствие токена и некорректный Bearer token.
+
+API / Regression:
+
+- tests/api/test_goals_api.py
+  Проверяет CRUD целей, граничные значения target value, validation, пустой update
+  и запрет доступа к чужим целям.
+
+- tests/api/test_templates_api.py
+  Проверяет создание шаблона, создание тренировки из шаблона, невалидный payload
+  и нарушение ownership.
+
+- tests/api/test_planning_regression_api.py
+  Проверяет статус missed, фильтрацию по статусу, сохранение wellness-полей при
+  завершении тренировки и граничную validation wellness-значений.
+
+Unit:
+
+- tests/unit/test_goal_service.py
+  Проверяет делегирование goal service, validation пустого update и обработку
+  отсутствующей цели.
+
+- tests/unit/test_template_service.py
+  Проверяет делегирование template service и обработку отсутствующего шаблона.
+
+- tests/unit/test_auth_service.py
+  Проверяет регистрацию, hashing пароля, duplicate user, успешный и неуспешный
+  login, rollback на ошибке БД и refresh token flow.
+
+- tests/unit/test_users_service.py
+  Проверяет список пользователей для trainer/admin dashboard, смену роли,
+  not found и rollback на ошибке БД.
+
+- tests/unit/test_workout_exercise_service.py
+  Проверяет ownership, создание связи workout-exercise, выборки, empty update,
+  not found, delete и rollback.
+
+- tests/unit/test_progress_service.py
+  Проверяет расчет volume, week start, summary, weekly volume, personal records,
+  history и обработку пустых/ошибочных данных.
+
+Integration:
+
+- tests/integration/test_redis_rate_limit_integration.py
+  Опциональный тест с настоящим Redis. Запускается только при
+  RUN_REDIS_INTEGRATION=1.
+
+E2E:
+
+- tests/e2e/pages/playwright_pages.py расширен действиями для auth mode switching,
+  shell state, навигации, goals, calendar, templates, notifications и logout.
+  Методы возвращают проверяемое состояние для явных assert'ов в тестах.
+- tests/e2e/pages/selenium_pages.py расширен действиями для auth mode switching,
+  навигации, создания тренировки и logout. Методы возвращают проверяемое состояние
+  для явных assert'ов в тестах.
+- tests/e2e/test_browser_playwright.py покрывает переключение login/register,
+  регистрацию, создание тренировки, создание цели, навигацию по основным разделам,
+  создание шаблона, drawer уведомлений и logout.
+- tests/e2e/test_browser_selenium.py покрывает переключение login/register,
+  регистрацию, переход к goals, создание тренировки, навигацию по разделам и logout.
+
+Load:
+
+- tests/load/locustfile.py расширен запросами:
+  - GET /progress/summary;
+  - GET /goals/;
+  - GET /templates/;
+  - optional POST /goals/ при LOAD_TEST_WRITE=1.
+
+4. Pytest markers
+-----------------
+
+В pytest.ini добавлены/используются markers:
+
+- api;
+- contract;
+- regression;
+- integration;
+- smoke;
+- security;
+- ui;
+- browser_ui;
+- e2e;
+- selenium;
+- slow.
+
+5. Примеры покрытия
+-------------------
+
+Позитивные сценарии:
+
+- пользователь создает, получает, обновляет и удаляет цели;
+- шаблон создает тренировку со связями упражнений;
+- завершение тренировки сохраняет wellness-данные;
+- E2E-путь: регистрация, создание тренировки и цели.
+
+Негативные сценарии:
+
+- защищенные endpoint'ы отклоняют запрос без токена;
+- некорректный Bearer token отклоняется;
+- пользователь не может менять или удалять чужие цели;
+- пользователь не может создать тренировку из чужого шаблона;
+- невалидные payload'ы goals/templates возвращают ошибки validation.
+
+Граничные значения:
+
+- нижняя граница target_value цели: 0.1;
+- валидные границы wellness-значений: 1 и 5;
+- невалидные wellness-значения: 0 и 6;
+- существующие тесты pagination/limit validation остаются частью API-набора.
+
+6. Команды запуска
+------------------
+
+Быстрая проверка синтаксиса Python:
+
+PYTHONPYCACHEPREFIX=/private/tmp/gymapp-pycache .venv/bin/python -m compileall main.py src tests
+
+Проверка JavaScript:
+
+node --check static/app.js
+
+Быстрый локальный pytest-набор:
+
+.venv/bin/python -m pytest tests/unit tests/smoke tests/contract tests/ui -q
+
+Browser UI без backend:
+
+RUN_UI_BROWSER=1 .venv/bin/python -m pytest tests/ui/test_browser_ui.py -q
+
+Quality gate по покрытию минимум 70%:
+
+.venv/bin/python -m pytest tests/unit tests/smoke tests/contract --cov=src --cov=main --cov-report=term-missing --cov-fail-under=70 -q
+
+API/security suite с PostgreSQL test DB:
+
+.venv/bin/python -m pytest tests/api tests/security -q
+
+Redis integration:
+
+RUN_REDIS_INTEGRATION=1 .venv/bin/python -m pytest tests/integration -q
+
+Playwright E2E:
+
+RUN_E2E=1 BASE_URL=http://127.0.0.1:8000 .venv/bin/python -m pytest tests/e2e/test_browser_playwright.py -q
+
+Selenium E2E:
+
+RUN_SELENIUM=1 SELENIUM_REMOTE_URL=http://127.0.0.1:4444/wd/hub BASE_URL=http://127.0.0.1:8000 .venv/bin/python -m pytest tests/e2e/test_browser_selenium.py -q
+
+Live smoke через requests:
+
+RUN_LIVE_SMOKE=1 BASE_URL=http://127.0.0.1:8000 .venv/bin/python -m pytest tests/smoke/test_app_smoke.py -q
+
+Load test:
+
+LOAD_TEST_TOKEN=<access_token> locust -f tests/load/locustfile.py -H http://127.0.0.1:8000
+
+Load test с write-сценариями:
+
+LOAD_TEST_TOKEN=<access_token> LOAD_TEST_WRITE=1 locust -f tests/load/locustfile.py -H http://127.0.0.1:8000
+
+Allure:
+
+.venv/bin/python -m pytest --alluredir=allure-results
+allure serve allure-results
+
+7. Выполненная проверка
+-----------------------
+
+Успешно выполнялось:
+
+- compileall main.py src tests: passed;
+- node --check static/app.js: passed;
+- pytest tests/unit tests/smoke tests/contract: 103 passed, 2 skipped;
+- pytest tests/smoke tests/e2e -q: 14 passed, 11 skipped;
+- pytest tests/e2e tests/integration -q: 3 skipped по флагам окружения.
+- pytest tests/unit tests/smoke tests/contract --cov=src --cov=main --cov-report=term-missing --cov-fail-under=70 -q:
+  103 passed, 2 skipped, total coverage 71.41%, required 70% reached.
+
+API/security suite запускался отдельно:
+
+- pytest tests/api tests/security;
+- результат: 1 passed, 39 skipped;
+- причина skip: PostgreSQL на 127.0.0.1:5433 и Redis на 127.0.0.1:6379 не были
+  запущены;
+- для полного API/integration-прогона нужно поднять Docker Compose или настроить
+  TEST_DATABASE_URL/Redis.
+
+8. Замечания
+------------
+
+Тестовый набор безопасен по умолчанию:
+
+- тесты с внешней инфраструктурой пропускаются, если сервисы недоступны;
+- destructive database setup отказывается работать с БД без test-суффикса;
+- E2E и live smoke требуют явных env-флагов;
+- write-нагрузка в Locust выключена, пока не задан LOAD_TEST_WRITE=1.
+
+Реализация тестов соответствует слоистой архитектуре приложения:
+
+- routers остаются тонкими;
+- services содержат бизнес-сценарии и логирование;
+- repositories содержат операции сохранения и чтения данных.

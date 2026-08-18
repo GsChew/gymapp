@@ -1,3 +1,10 @@
-from src.models.UserModels import User
-from src.models.WorkoutModels import WorkoutModel, ExerciseModel, WorkoutExercise
-from src.models.NotificationModels import NotificationModel
+from src.models.user import User
+from src.models.workout import (
+    ExerciseModel,
+    UserGoal,
+    WorkoutExercise,
+    WorkoutModel,
+    WorkoutTemplate,
+    WorkoutTemplateExercise,
+)
+from src.models.notification import NotificationModel

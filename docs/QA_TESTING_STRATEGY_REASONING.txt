@@ -1,0 +1,955 @@
+ЛОГИКА ПРОВЕДЕНИЯ ТЕСТИРОВАНИЯ ПРОЕКТА GYM PLANNER / STRIDE
+============================================================
+
+Дата: 2026-07-09
+Формат: рассуждение QA-инженера, который только получил проект и должен
+понять, что, как, когда и зачем покрывать тестами.
+
+
+1. С ЧЕГО Я НАЧИНАЮ
+-------------------
+
+Я получил проект Gym Planner / Stride. Сначала я не пишу тесты сразу. Мне нужно
+понять, что это за система, какие у нее основные сценарии, где лежит бизнес-риск
+и где дефект будет самым дорогим.
+
+Из README и структуры проекта я вижу:
+
+  - backend на FastAPI;
+  - frontend как SPA в static/index.html + static/app.js;
+  - база PostgreSQL через SQLAlchemy;
+  - миграции Alembic;
+  - Redis для rate limit;
+  - RabbitMQ + Celery + Celery Beat для фоновых уведомлений;
+  - роли user/trainer/admin;
+  - JWT access/refresh auth;
+  - домены: auth, users, workouts, workout_exercises, exercises, goals,
+    templates, progress, notifications.
+
+Архитектурно проект разделен так:
+
+  router -> service -> repository -> database
+
+Это важная подсказка для тестирования. Если проект слоистый, я не должен
+проверять все только через UI. UI-тесты будут дорогими, медленными и хрупкими.
+Большую часть backend-логики выгоднее проверять unit/API тестами, а UI оставить
+для критичных пользовательских путей.
+
+
+2. МОЯ ГЛАВНАЯ ЦЕЛЬ КАК QA
+--------------------------
+
+Моя цель не "написать побольше тестов". Моя цель — дешевле и раньше ловить
+дефекты, которые реально сломают пользователя или данные.
+
+Поэтому я делю проверки на уровни:
+
+  - unit: быстро проверить чистую логику, ветвления и service contracts;
+  - smoke: быстро понять, что приложение вообще живое;
+  - contract: проверить публичный API-контракт OpenAPI;
+  - API/integration: проверить HTTP + DI + Pydantic + service + repository + DB;
+  - security: проверить auth, роли, ownership, токены;
+  - infrastructure integration: проверить Redis/Rabbit/Celery/Alembic там, где
+    мок уже не доказывает реальную интеграцию;
+  - E2E UI: проверить то, что пользователь реально делает в браузере;
+  - load: понять, что будет с latency/error rate под нагрузкой;
+  - BDD/acceptance: описать бизнес-сценарии человеческим языком.
+
+Я не выбираю один уровень тестов. Я строю пирамиду. Чем ниже уровень, тем больше
+тестов. Чем выше уровень, тем меньше тестов, но они ближе к реальному поведению
+пользователя.
+
+
+3. КАК Я ОЦЕНИВАЮ РИСКИ
+-----------------------
+
+Я смотрю на проект и задаю вопросы:
+
+  - Что может дать пользователю полный отказ сервиса?
+  - Где можно потерять или испортить данные?
+  - Где можно получить доступ к чужим данным?
+  - Где дефект будет незаметен сразу, но накопит проблему?
+  - Где много интеграций и поэтому высокий риск поломки окружения?
+  - Где уже были изменения структуры файлов, миграций или импортов?
+
+Для этого проекта самые рискованные зоны:
+
+  1. Auth и JWT.
+     Если сломан login/register/refresh, пользователь не войдет. Если сломана
+     проверка токена, появится security-риск.
+
+  2. Роли и доступ.
+     Trainer/admin имеют расширенные права. Ошибка тут может дать обычному user
+     доступ к чужим данным или admin-функциям.
+
+  3. Ownership.
+     Пользователь должен видеть и менять только свои workouts, goals, templates,
+     notifications. Это критично.
+
+  4. Workouts и workout_exercises.
+     Это главный домен приложения. Если тренировки создаются неправильно, весь
+     продукт теряет смысл.
+
+  5. Starter plan.
+     Важна идемпотентность. Повторный клик или retry не должен создать дубли.
+
+  6. Completion workflow.
+     Завершение тренировки меняет workout status, workout exercise status,
+     completed_at, wellness-поля и progress-данные. Тут много связанных данных.
+
+  7. Progress.
+     Это расчетная логика. Пользователь может видеть неверные рекорды, объемы,
+     streak и недельную статистику.
+
+  8. Notifications.
+     Здесь есть Celery, RabbitMQ, DB и время. Это интеграционный риск.
+
+  9. Rate limit.
+     Это Redis + Lua/атомарная логика. Мок не докажет, что Redis-скрипт работает.
+
+  10. Alembic/Docker Compose.
+      Проект запускается через docker compose. Если миграции падают, приложение,
+      celery и celery-beat не стартуют.
+
+
+4. ПОЧЕМУ НЕ ВСЕ ЧЕРЕЗ UI
+-------------------------
+
+UI-тест кажется самым "реальным", но он самый дорогой:
+
+  - нужен запущенный backend;
+  - нужна база;
+  - нужен браузер;
+  - тест зависит от разметки, текста, CSS-состояний, timing;
+  - падение сложнее диагностировать;
+  - большое количество UI-тестов замедляет pipeline.
+
+Поэтому через UI я проверяю только то, что действительно является браузерным
+поведением:
+
+  - пользователь видит login/register формы;
+  - может зарегистрироваться;
+  - после регистрации попадает в dashboard;
+  - может открыть разделы приложения;
+  - может создать тренировку через форму;
+  - может создать цель;
+  - может создать шаблон;
+  - может открыть drawer уведомлений;
+  - может выйти из аккаунта.
+
+А вот такие проверки я не тащу в UI:
+
+  - "нельзя обновить чужую цель";
+  - "невалидный refresh token дает 401";
+  - "goal target_value должен быть больше 0";
+  - "rate limit блокирует третью попытку";
+  - "repository сохраняет правильные поля";
+  - "progress считает volume правильно".
+
+Это дешевле и надежнее проверить на API/unit/integration уровне.
+
+
+5. ПОЧЕМУ ЧАСТЬ ЧЕРЕЗ API
+-------------------------
+
+API-тест хорош, когда мне нужно проверить поведение системы как сервиса:
+
+  HTTP request
+    -> FastAPI router
+    -> Pydantic validation
+    -> dependencies
+    -> service
+    -> repository
+    -> DB
+    -> HTTP response
+
+API-тест ловит то, что unit не поймает:
+
+  - неправильный status code;
+  - неправильный response body;
+  - забытый Depends;
+  - сломанный path или query parameter;
+  - несовпадение Pydantic schema и модели;
+  - отсутствие commit/refresh;
+  - неверный ownership check;
+  - неверный RBAC;
+  - ошибку интеграции с PostgreSQL.
+
+Через API я тестирую:
+
+  - auth: register/login/refresh/me;
+  - workouts CRUD;
+  - starter plan;
+  - workout_exercises;
+  - exercises и RBAC trainer/admin;
+  - notifications CRUD;
+  - goals CRUD;
+  - templates CRUD и создание workout из template;
+  - progress endpoints;
+  - security negative cases.
+
+Почему API, а не UI? Потому что это контракт backend. Если API работает, UI может
+использовать его. А если мне нужно проверить 20 вариантов validation, делать это
+через браузер слишком дорого.
+
+
+6. ПОЧЕМУ ЧАСТЬ ЧЕРЕЗ UNIT
+--------------------------
+
+Unit-тест нужен там, где есть локальная логика:
+
+  - генерация и декодирование JWT;
+  - hashing/verify password;
+  - проверки типа токена;
+  - role checker;
+  - service-to-repository contract;
+  - empty update validation;
+  - progress volume/week/record calculations;
+  - обработка repository result None -> ValueError;
+  - rollback на DB exception;
+  - Celery decision logic.
+
+Почему unit, а не API?
+
+Потому что мне не нужна настоящая БД, если я хочу проверить, что:
+
+  - service вызывает repository с правильными аргументами;
+  - при SQLAlchemyError вызывается rollback;
+  - пустой SWorkoutUpdate не идет в repository;
+  - progress summary правильно суммирует sets * reps * weight.
+
+Unit-тест дешевый и быстрый. Он дает точную диагностику. Если сломалась формула
+volume, я хочу увидеть это за 0.1 секунды, а не ждать браузерный сценарий.
+
+
+7. ПОЧЕМУ НУЖНЫ INTEGRATION ТЕСТЫ
+---------------------------------
+
+Моки полезны, но они не доказывают работу внешней инфраструктуры.
+
+В проекте есть Redis, PostgreSQL, RabbitMQ, Celery, Alembic. Для них нужны
+интеграционные проверки.
+
+Что я проверяю интеграционно:
+
+  - PostgreSQL:
+    API-тесты создают реальные записи, читают их, проверяют ownership и cleanup.
+
+  - Redis:
+    rate limit должен работать на настоящем Redis, потому что атомарность и TTL
+    нельзя честно доказать обычным mock.
+
+  - Alembic:
+    docker compose должен проходить `alembic upgrade head`. Если миграции падают,
+    app/celery не стартуют.
+
+  - RabbitMQ + Celery:
+    worker должен подключаться к `amqp://guest:**@rabbitmq:5672//`, beat должен
+    отправлять задачу, worker должен ее получить и выполнить.
+
+Почему не проверять Rabbit через unit?
+
+Unit может проверить, что `celery_app` сконфигурирован. Но он не докажет, что
+контейнер Rabbit healthy, что имя хоста `rabbitmq` доступно из docker network,
+что worker реально connected, а task реально received/succeeded.
+
+
+8. ПОЧЕМУ НУЖНЫ SMOKE ТЕСТЫ
+---------------------------
+
+Smoke — это первый быстрый вопрос:
+
+  "Приложение вообще живое?"
+
+Smoke не должен глубоко проверять бизнес-логику. Он должен быстро дать сигнал,
+что сборка не полностью сломана.
+
+В этом проекте smoke проверяет:
+
+  - `/health` возвращает `{"status": "ok"}`;
+  - есть `x-request-id`;
+  - SPA entrypoint `/` отдается;
+  - static assets доступны;
+  - OpenAPI содержит ключевые routes;
+  - OpenAPI содержит auth security scheme;
+  - защищенные endpoints без токена дают 401;
+  - неизвестный route дает 404 и request id;
+  - live smoke через requests можно включить отдельным флагом.
+
+Почему это smoke, а не API regression?
+
+Потому что smoke должен проходить быстро и без внешней инфраструктуры. Если smoke
+красный, нет смысла запускать тяжелые API/E2E/load тесты.
+
+
+9. ПОЧЕМУ НУЖНЫ CONTRACT ТЕСТЫ
+------------------------------
+
+Контракт API может сломаться даже если логика работает. Например:
+
+  - endpoint переименовали;
+  - schema пропала из OpenAPI;
+  - enum изменился;
+  - response model поменялся;
+  - frontend или внешний клиент больше не понимает API.
+
+Contract-тесты смотрят в OpenAPI и проверяют, что важные публичные контракты
+остались на месте.
+
+В этом проекте это особенно важно из-за SPA frontend: JS-код зависит от endpoint
+names и структуры ответов.
+
+
+10. ПОЧЕМУ НУЖНЫ SECURITY ТЕСТЫ
+-------------------------------
+
+Security-тесты я выделяю отдельно, потому что auth/roles/ownership — это высокий
+риск.
+
+Что тестирую:
+
+  - endpoint без токена -> 401;
+  - malformed Bearer token -> 401;
+  - refresh token нельзя использовать как access token;
+  - user не может делать trainer/admin действия;
+  - user не может читать/менять чужие workouts/goals/templates/notifications;
+  - duplicate register -> 409;
+  - неверный login/password -> 401.
+
+Почему часть security через API, а не unit?
+
+Потому что security часто ломается на связке FastAPI Depends + router + service.
+Unit может проверить role checker отдельно, но не докажет, что конкретный endpoint
+его реально использует.
+
+
+11. ПОЧЕМУ НУЖНЫ E2E UI ТЕСТЫ
+-----------------------------
+
+UI-тесты нужны для проверки реального пользовательского пути:
+
+  - DOM отрисовался;
+  - форма доступна;
+  - кнопки кликаются;
+  - JS отправляет правильный request;
+  - token сохраняется;
+  - после login открывается app shell;
+  - view переключается;
+  - modal/dialog работает;
+  - notification drawer открывается;
+  - logout очищает состояние.
+
+В этом проекте я использую Playwright как основной браузерный инструмент:
+
+  - современный;
+  - быстрый;
+  - удобные ожидания;
+  - хорошо подходит для CI;
+  - можно сохранять trace/video/screenshot.
+
+Selenium я оставляю как дополнительный слой:
+
+  - полезен, если команда/работодатель использует Selenium Grid;
+  - привычен для middle QA Python;
+  - позволяет показать совместимость подхода Page Object и с Selenium.
+
+Почему не дублировать все Playwright-тесты в Selenium?
+
+Потому что это удвоит поддержку без удвоения пользы. Playwright — основной
+набор, Selenium — compatibility/sanity набор.
+
+
+12. КАК Я ВЫБИРАЮ: UI ИЛИ API
+-----------------------------
+
+Мое правило:
+
+  Если проверка про визуальный путь пользователя — UI.
+  Если проверка про бизнес-правило backend — API.
+  Если проверка про маленькую функцию/ветку — unit.
+  Если проверка про внешний сервис — integration.
+
+Примеры по этому проекту:
+
+  1. "Пользователь видит форму регистрации и может создать аккаунт"
+     Уровень: UI + API.
+     Почему UI: важно проверить форму, кнопку, JS, переход в dashboard.
+     Почему API: нужно отдельно проверить register/login status codes и body.
+
+  2. "Неверный пароль не логинит"
+     Уровень: API + unit.
+     Почему не UI: UI здесь только покажет toast. Главная логика в auth service
+     и HTTP 401.
+
+  3. "JWT refresh token нельзя использовать как access"
+     Уровень: unit + API/security.
+     Почему не UI: браузерный сценарий будет искусственным и дорогим.
+
+  4. "Создать тренировку"
+     Уровень: API + UI.
+     Почему API: проверить сохранение, owner, response, validation.
+     Почему UI: это ключевой пользовательский сценарий формы.
+
+  5. "Пользователь не может удалить чужую тренировку"
+     Уровень: API.
+     Почему не UI: нужен setup двух пользователей и проверка 403/404. Через API
+     это быстро и ясно.
+
+  6. "Progress summary считает недельный объем"
+     Уровень: unit + API.
+     Почему unit: формула должна проверяться быстро и точно.
+     Почему API: endpoint должен вернуть расчет пользователю.
+
+  7. "Rate limit блокирует лишние попытки"
+     Уровень: unit + Redis integration.
+     Почему integration: нужно доказать Redis TTL/atomic behavior.
+
+  8. "Celery отправляет уведомления"
+     Уровень: unit + Docker/integration.
+     Почему unit: проверить выбор due workouts и создание notifications.
+     Почему integration: проверить worker/beat/Rabbit connection.
+
+  9. "OpenAPI не потерял /goals/ и /templates/"
+     Уровень: contract.
+     Почему не API: мне не нужно создавать данные; мне нужно проверить контракт.
+
+  10. "Страница открывается и static assets доступны"
+      Уровень: smoke.
+      Почему не E2E: браузер не нужен, достаточно HTTP TestClient.
+
+
+13. ПОКРЫТИЕ ПО ДОМЕНАМ
+-----------------------
+
+13.1 Auth
+
+Что тестирую:
+
+  - register success;
+  - duplicate username/email;
+  - password hashing;
+  - login success;
+  - login wrong password;
+  - login unknown user;
+  - access token claims;
+  - refresh token claims;
+  - malformed token;
+  - /auth/me with valid/invalid token.
+
+Как:
+
+  - unit для hash/verify/create/decode token;
+  - unit для auth service;
+  - API для register/login/refresh/me;
+  - security для protected endpoints.
+
+Почему:
+
+  Auth — вход в систему и security boundary. Unit быстро проверяет крипто/claims,
+  API доказывает реальный HTTP-flow.
+
+
+13.2 Users / Roles
+
+Что тестирую:
+
+  - trainer/admin видит users;
+  - user не видит admin users;
+  - admin меняет роль;
+  - trainer не меняет роль, если это только admin действие;
+  - not found user;
+  - rollback на DB error.
+
+Как:
+
+  - unit для users service;
+  - API/security для role access.
+
+Почему:
+
+  Роли нельзя полноценно проверить только unit-тестом: важно убедиться, что
+  endpoint действительно защищен Depends(require_roles(...)).
+
+
+13.3 Workouts
+
+Что тестирую:
+
+  - create/list/get/update/delete;
+  - status filter;
+  - empty update;
+  - not found;
+  - ownership;
+  - starter plan;
+  - idempotency starter plan;
+  - complete workout;
+  - wellness boundaries 1..5;
+  - missed status.
+
+Как:
+
+  - unit для service веток;
+  - API для CRUD/ownership/status/idempotency;
+  - UI для базового создания через форму.
+
+Почему:
+
+  Workouts — центральная сущность. API дает уверенность в backend behavior, UI
+  проверяет, что пользователь реально может выполнить базовый сценарий.
+
+
+13.4 Workout exercises
+
+Что тестирую:
+
+  - добавить упражнение в тренировку;
+  - получить связи;
+  - фильтр по status;
+  - update sets/reps/weight/order;
+  - empty update;
+  - delete;
+  - нельзя добавить упражнение в чужую workout;
+  - not found.
+
+Как:
+
+  - unit для service-to-repository contract;
+  - API для ownership и реального сохранения.
+
+Почему:
+
+  Это связующая таблица с составным ключом. Ошибки тут часто возникают на
+  уровне repository/ORM/API path params.
+
+
+13.5 Exercises
+
+Что тестирую:
+
+  - list/filter exercises;
+  - get by id;
+  - trainer/admin create/update/delete;
+  - user получает 403 на create/update/delete;
+  - invalid train/muscle enum;
+  - not found.
+
+Как:
+
+  - unit для service веток;
+  - API для RBAC и Pydantic enum validation.
+
+Почему:
+
+  Справочник упражнений используется workout builder'ом. Нельзя позволить обычному
+  user ломать общую библиотеку.
+
+
+13.6 Goals
+
+Что тестирую:
+
+  - create/list/update/delete;
+  - target_value > 0;
+  - current_value >= 0;
+  - empty update;
+  - чужую цель нельзя менять;
+  - boundary 0.1;
+  - invalid 0 или отрицательные значения.
+
+Как:
+
+  - unit для service;
+  - API/regression для CRUD/ownership/boundaries;
+  - UI для базового создания цели.
+
+Почему:
+
+  UI проверяет пользовательский happy path, API проверяет матрицу негативных и
+  граничных случаев.
+
+
+13.7 Templates
+
+Что тестирую:
+
+  - create template;
+  - list templates;
+  - create workout from template;
+  - delete template;
+  - template ownership;
+  - invalid payload;
+  - создание template из workout без упражнений;
+  - создание template с exercises.
+
+Как:
+
+  - unit для service;
+  - API для реального создания workout from template;
+  - UI для базового создания template.
+
+Почему:
+
+  Template flow затрагивает несколько сущностей. API лучше проверяет данные,
+  UI нужен только для критичного пользовательского пути.
+
+
+13.8 Progress
+
+Что тестирую:
+
+  - total volume;
+  - weekly volume;
+  - completed workouts;
+  - completed this week;
+  - current streak;
+  - best exercise;
+  - exercise record;
+  - exercise history;
+  - no completed data -> корректная ошибка/пустой результат.
+
+Как:
+
+  - unit для расчетов;
+  - API для endpoints;
+  - UI только для открытия progress view, не для всех математических вариантов.
+
+Почему:
+
+  Расчетная логика должна быть быстрой и детерминированной. Через UI сложно
+  объяснить, почему ожидалось именно такое число.
+
+
+13.9 Notifications
+
+Что тестирую:
+
+  - list notifications;
+  - unread count;
+  - get by id;
+  - mark as read;
+  - delete;
+  - ownership;
+  - Celery task creates notifications for due workouts;
+  - empty due list does not commit лишний раз;
+  - Rabbit/Celery connection in docker compose.
+
+Как:
+
+  - unit для notification service;
+  - unit для Celery task decision logic;
+  - API для CRUD/ownership;
+  - Docker/integration для Rabbit/Celery.
+
+Почему:
+
+  Уведомления зависят от времени и фонового воркера. Нужно разделить бизнес-логику
+  и инфраструктурную проверку.
+
+
+13.10 Rate limit
+
+Что тестирую:
+
+  - allowed response;
+  - blocked response;
+  - Retry-After;
+  - fail-open при падении Redis;
+  - настоящий Redis сценарий: две попытки проходят, третья блокируется.
+
+Как:
+
+  - unit для обработки результата;
+  - integration с настоящим Redis для Lua/TTL.
+
+Почему:
+
+  Rate limit — infrastructure behavior. Unit без Redis не докажет атомарность.
+
+
+13.11 Docker / Alembic / инфраструктура
+
+Что тестирую:
+
+  - docker compose config валиден;
+  - alembic upgrade head проходит;
+  - app стартует;
+  - rabbitmq healthy;
+  - redis healthy;
+  - db healthy;
+  - celery подключается к RabbitMQ;
+  - celery-beat отправляет task;
+  - health endpoint отвечает.
+
+Как:
+
+  - ручной smoke/integration прогон локально;
+  - в CI можно оформить отдельный job.
+
+Почему:
+
+  В проекте уже была реальная проблема: старые imports в Alembic после
+  переименования файлов блокировали старт app/celery. Это типичный пример,
+  почему одной проверки unit/API недостаточно.
+
+
+14. ПОЗИТИВНЫЕ, НЕГАТИВНЫЕ И ГРАНИЧНЫЕ СЦЕНАРИИ
+-----------------------------------------------
+
+Для каждой важной зоны я хочу минимум:
+
+  - позитивный сценарий;
+  - негативный сценарий;
+  - граничное значение;
+  - access/ownership проверку, если есть пользовательские данные.
+
+Примеры:
+
+  Auth:
+    positive: валидный login возвращает token pair.
+    negative: неверный пароль -> 401.
+    boundary: password min length.
+
+  Goals:
+    positive: create target_value=3.
+    negative: чужую цель нельзя изменить.
+    boundary: target_value=0.1 валиден, 0 невалиден.
+
+  Wellness:
+    positive: 1 и 5 валидны.
+    negative: 0 и 6 невалидны.
+    boundary: ровно нижняя и верхняя границы.
+
+  Workouts:
+    positive: create/update/delete своей workout.
+    negative: нельзя получить чужую workout.
+    boundary: limit/offset/status filter.
+
+
+15. ТЕСТОВЫЕ ДАННЫЕ
+-------------------
+
+Я не хочу руками писать одинаковые payload'ы в каждом тесте. Поэтому использую:
+
+  - Factory для типовых пользователей;
+  - Builder для workout/workout-exercise payload;
+  - уникальные username/email через uuid;
+  - isolated test database `gymapp_test`;
+  - protection от запуска destructive setup на обычной `gymapp`.
+
+Почему это важно:
+
+  - тесты не конфликтуют друг с другом;
+  - можно запускать параллельно;
+  - меньше копипасты;
+  - легче менять schema.
+
+
+16. PAGE OBJECT MODEL
+---------------------
+
+Для UI-тестов я не хочу хранить селекторы в тестах.
+
+Плохой стиль:
+
+  test:
+    page.locator("#register-form input[name='username']")
+    page.locator("#register-form button[type='submit']")
+
+Хороший стиль:
+
+  test:
+    auth_page.register(...)
+    assert dashboard_page.greeting_text() == ...
+
+Page Object хранит:
+
+  - селекторы;
+  - ожидания;
+  - действия на странице;
+  - методы, возвращающие проверяемое состояние.
+
+В самих тестах я оставляю явные assert. Это важно: тест должен читаться как
+проверка, а не как набор действий без результата.
+
+
+17. ALLURE И ОТЧЕТНОСТЬ
+-----------------------
+
+Allure нужен не для красоты, а для анализа:
+
+  - какой слой упал;
+  - какой feature нестабилен;
+  - где screenshots/traces;
+  - какие шаги были выполнены;
+  - какие negative/boundary scenarios покрыты.
+
+Я бы размечал:
+
+  - epic: Gym Planner;
+  - feature: Auth / Workouts / Goals / Templates / Progress;
+  - story: конкретный сценарий;
+  - severity: critical для auth/ownership, normal для UI navigation.
+
+
+18. LOAD TESTING
+----------------
+
+Нагрузку я не запускаю сразу на все подряд.
+
+Сначала я выбираю read-heavy profile:
+
+  - GET /workouts/;
+  - GET /progress/summary;
+  - GET /goals/;
+  - GET /templates/.
+
+Почему read-heavy сначала:
+
+  - безопаснее для данных;
+  - меньше мусора в базе;
+  - можно быстро понять p95/error rate;
+  - write-нагрузка требует отдельной среды.
+
+Write load включаю только явно:
+
+  LOAD_TEST_WRITE=1
+
+Перед нагрузкой нужно определить SLO:
+
+  - p95 GET /workouts < 300 ms;
+  - error rate < 1%;
+  - нет роста 5xx;
+  - PostgreSQL/Redis/Rabbit не упираются в лимиты.
+
+
+19. ЧТО ЗАПУСКАТЬ И КОГДА
+-------------------------
+
+Локально перед коммитом:
+
+  pytest tests/unit tests/smoke tests/contract -q
+
+Локально с coverage gate:
+
+  pytest tests/unit tests/smoke tests/contract \
+    --cov=src --cov=main --cov-report=term-missing --cov-fail-under=70
+
+Когда менялся API или DB:
+
+  REQUIRE_TEST_INFRA=1 pytest tests/api tests/security -q
+
+Когда менялся frontend:
+
+  RUN_E2E=1 BASE_URL=http://127.0.0.1:8000 \
+    pytest tests/e2e/test_browser_playwright.py -q
+
+Когда нужно проверить Selenium/Grid:
+
+  RUN_SELENIUM=1 SELENIUM_REMOTE_URL=http://localhost:4444/wd/hub \
+    BASE_URL=http://127.0.0.1:8000 \
+    pytest tests/e2e/test_browser_selenium.py -q
+
+Когда менялся Redis/rate limit:
+
+  RUN_REDIS_INTEGRATION=1 pytest tests/integration -q
+
+Когда менялась инфраструктура:
+
+  docker compose config
+  docker compose up -d --build
+  curl http://127.0.0.1:8000/health
+  docker compose logs --tail=100 app celery celery-beat rabbitmq alembic
+
+
+20. КАК БЫ Я ПОСТРОИЛ CI
+------------------------
+
+На каждый PR:
+
+  1. lint/import/syntax:
+     - compileall;
+     - node --check static/app.js.
+
+  2. fast tests:
+     - unit;
+     - smoke;
+     - contract;
+     - coverage fail under 70.
+
+  3. API integration:
+     - PostgreSQL test DB;
+     - Redis;
+     - tests/api;
+     - tests/security.
+
+  4. Docker compose smoke:
+     - docker compose config;
+     - docker compose up -d --build;
+     - health check;
+     - celery connected;
+     - rabbitmq healthy.
+
+Nightly:
+
+  - Playwright E2E;
+  - Selenium compatibility;
+  - Locust headless;
+  - Redis integration;
+  - BDD behave scenarios.
+
+Почему так:
+
+  Быстрый feedback на PR не должен ждать браузеры и нагрузку. Но тяжелые тесты
+  все равно нужны, просто их лучше запускать nightly или перед релизом.
+
+
+21. ЧТО Я НЕ БУДУ ТЕСТИРОВАТЬ И ПОЧЕМУ
+--------------------------------------
+
+Я не буду тестировать каждый private helper через отдельный тест, если он уже
+покрыт поведением публичной функции.
+
+Я не буду проверять все validation cases через UI, потому что это медленно и
+хрупко.
+
+Я не буду мокать Redis и говорить, что rate limit полностью проверен. Для Redis
+нужен хотя бы один настоящий integration scenario.
+
+Я не буду запускать load test на обычной dev-базе с write-сценариями без очистки.
+
+Я не буду проверять CSS-пиксели без явной задачи на visual regression. Для этого
+нужна отдельная стратегия screenshot baselines.
+
+
+22. ИТОГОВАЯ СТРАТЕГИЯ
+----------------------
+
+Если коротко, моя стратегия такая:
+
+  1. Понять домены и риски.
+  2. Зафиксировать smoke, чтобы быстро видеть, что приложение живое.
+  3. Покрыть unit-тестами чистую логику и service contracts.
+  4. Покрыть API-тестами реальные backend сценарии, ownership и RBAC.
+  5. Покрыть integration-тестами Redis/Celery/Alembic/Docker там, где моки не
+     доказывают реальную работу.
+  6. Покрыть UI-тестами только критичные пользовательские пути.
+  7. Добавить load tests для основных read endpoints и отдельный controlled
+     write profile.
+  8. Держать coverage gate минимум 70%, но не считать процент главным качеством.
+  9. Документировать команды, skip flags и условия запуска.
+  10. Постоянно задавать вопрос: "Какой самый дешевый тест докажет это поведение?"
+
+Главная мысль:
+
+  Не нужно все проверять через один инструмент. Хороший QA выбирает уровень теста
+  по риску, цене поддержки и месту, где может возникнуть дефект.
+
+  UI нужен для пользовательского пути.
+  API нужен для backend-контракта и бизнес-правил.
+  Unit нужен для быстрой проверки логики.
+  Integration нужен для настоящей инфраструктуры.
+  Load нужен для производительности.
+  Smoke нужен для быстрого сигнала "живое/не живое".
+
+Именно такая комбинация дает проекту нормальную защиту от регрессий без того,
+чтобы тесты стали медленными, хрупкими и дорогими в поддержке.

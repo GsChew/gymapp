@@ -2,16 +2,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from loguru import logger
 
-from src.schemas.UserSchemas import SUserCreate, SUserLogin
+from src.schemas.user import SUserCreate, SUserLogin
 from src.repository.users import UserRepository
 from src.auth.security import hash_password, create_access_token, create_refresh_token, verify_password, decode_token
-from src.schemas.TokenSchemas import STokenResponse
+from src.schemas.token import STokenResponse
 
 async def register_user(user: SUserCreate, session: AsyncSession):
+    """Create a user after hashing the password and validating uniqueness."""
     logger.info(f"Trying to register user username={user.username}")
 
     user_data = user.model_dump()
-    user_data["password"] = hash_password(user.password)
+    user_data["hashed_password"] = hash_password(user.password)
+    user_data.pop("password")
 
     try:
         created_user = await UserRepository.create_user(user_data, session)
@@ -47,6 +49,7 @@ async def register_user(user: SUserCreate, session: AsyncSession):
         raise ValueError("Ошибка при создании пользователя")
 
 async def login_user(user: SUserLogin, session: AsyncSession) -> STokenResponse:
+    """Authenticate user credentials and issue token pair."""
     logger.info(f"Trying to login user username={user.username}")
 
     try:
@@ -57,7 +60,7 @@ async def login_user(user: SUserLogin, session: AsyncSession) -> STokenResponse:
                 f"Login failed: user not found "
                 f"username={user.username}"
             )
-            raise ValueError("Пользователь не найден")
+            raise ValueError("Неверные учетные данные")
 
         if not verify_password(user.password, curr_user.hashed_password):
             logger.warning(
@@ -65,7 +68,7 @@ async def login_user(user: SUserLogin, session: AsyncSession) -> STokenResponse:
                 f"username={user.username} "
                 f"user_id={curr_user.id}"
             )
-            raise ValueError("Неверный пароль")
+            raise ValueError("Неверные учетные данные")
 
         access_token = create_access_token(curr_user.id)
         refresh_token = create_refresh_token(curr_user.id)
@@ -94,6 +97,7 @@ async def login_user(user: SUserLogin, session: AsyncSession) -> STokenResponse:
 
 async def refresh_tokens(refresh_token: str) -> STokenResponse:
 
+    """Validate a refresh token and issue a new token pair."""
     logger.info("Trying to refresh tokens")
 
     try:
